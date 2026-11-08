@@ -71,63 +71,74 @@
     <Panel Margin="0,12,0,0">
       <TextBlock Text="No game files found in the games directory." Classes="muted" HorizontalAlignment="Center"
                  VerticalAlignment="Center" IsVisible="{Binding IsEmpty}" />
-      <ScrollViewer>
-        <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,24">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate DataType="vm:LocalGameViewModel">
-              <Border Classes="card row" Classes.child="{Binding IsChild}" Padding="12">
-                <Grid ColumnDefinitions="Auto,64,*,Auto,Auto">
-                  <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip.Tip="Select for deletion" />
-                  <Panel Grid.Column="1" Width="56" Height="56" Background="{DynamicResource PlaceholderBrush}">
-                    <PathIcon Data="{StaticResource IconGamepad}" Width="24" Height="24" Opacity="0.35" />
-                    <Image Source="{Binding Cover}" Stretch="UniformToFill" />
-                  </Panel>
-                  <StackPanel Grid.Column="2" Margin="12,0" Spacing="2" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                      <Border Classes="badge" IsVisible="{Binding IsPinned}" Background="{DynamicResource AccentBrush}">
-                        <TextBlock Text="Pinned" FontSize="11" Foreground="White" />
-                      </Border>
-                      <Border Classes="badge" IsVisible="{Binding IsUnverified}" Background="{DynamicResource WarningBrush}"
-                              ToolTip.Tip="The file size changed since it was downloaded">
-                        <TextBlock Text="Unverified" FontSize="11" Foreground="Black" />
-                      </Border>
+      <!-- The ScrollViewer lives inside the ItemsControl template so the VirtualizingStackPanel only creates visible rows. -->
+      <ItemsControl ItemsSource="{Binding Items}">
+        <ItemsControl.Template>
+          <ControlTemplate>
+            <ScrollViewer>
+              <ItemsPresenter Margin="0,0,0,24" />
+            </ScrollViewer>
+          </ControlTemplate>
+        </ItemsControl.Template>
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="vm:LocalGameViewModel">
+            <Border Classes="card row" Classes.child="{Binding IsChild}" Padding="12">
+              <Grid ColumnDefinitions="Auto,64,*,Auto,Auto">
+                <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip.Tip="Select for deletion" />
+                <Panel Grid.Column="1" Width="56" Height="56" Background="{DynamicResource PlaceholderBrush}">
+                  <PathIcon Data="{StaticResource IconGamepad}" Width="24" Height="24" Opacity="0.35" />
+                  <Image Source="{Binding Cover}" Stretch="UniformToFill" />
+                </Panel>
+                <StackPanel Grid.Column="2" Margin="12,0" Spacing="2" VerticalAlignment="Center">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <Border Classes="badge" IsVisible="{Binding IsPinned}" Background="{DynamicResource AccentBrush}">
+                      <TextBlock Text="Pinned" FontSize="11" Foreground="White" />
+                    </Border>
+                    <Border Classes="badge" IsVisible="{Binding IsUnverified}" Background="{DynamicResource WarningBrush}"
+                            ToolTip.Tip="The file size changed since it was downloaded">
+                      <TextBlock Text="Unverified" FontSize="11" Foreground="Black" />
+                    </Border>
+                  </StackPanel>
+                  <TextBlock Text="{Binding ParentText}" Classes="small" Foreground="{DynamicResource AccentBrush}" IsVisible="{Binding IsChild}" />
+                  <TextBlock Text="{Binding Details}" Classes="muted small" />
+                  <TextBlock Text="{Binding PathText}" Classes="muted small" TextTrimming="PathSegmentEllipsis" />
+                  <TextBlock Classes="muted small">
+                    <Run Text="Downloaded: " /><Run Text="{Binding DownloadedText}" />
+                    <Run Text="   Last accessed: " /><Run Text="{Binding LastAccessedText}" />
+                  </TextBlock>
+                </StackPanel>
+                <TextBlock Grid.Column="3" Text="{Binding SizeText}" VerticalAlignment="Center" Margin="0,0,16,0" FontWeight="SemiBold" />
+                <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <Button ToolTip.Tip="{Binding PinButtonText}" Command="{ReflectionBinding $parent[UserControl].DataContext.TogglePinCommand}" CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <PathIcon Data="{StaticResource IconPin}" Width="14" Height="14" />
+                      <TextBlock Text="{Binding PinButtonText}" />
                     </StackPanel>
-                    <TextBlock Text="{Binding ParentText}" Classes="small" Foreground="{DynamicResource AccentBrush}" IsVisible="{Binding IsChild}" />
-                    <TextBlock Text="{Binding Details}" Classes="muted small" />
-                    <TextBlock Text="{Binding PathText}" Classes="muted small" TextTrimming="PathSegmentEllipsis" />
-                    <TextBlock Classes="muted small">
-                      <Run Text="Downloaded: " /><Run Text="{Binding DownloadedText}" />
-                      <Run Text="   Last accessed: " /><Run Text="{Binding LastAccessedText}" />
-                    </TextBlock>
-                  </StackPanel>
-                  <TextBlock Grid.Column="3" Text="{Binding SizeText}" VerticalAlignment="Center" Margin="0,0,16,0" FontWeight="SemiBold" />
-                  <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button ToolTip.Tip="{Binding PinButtonText}" Command="{ReflectionBinding $parent[UserControl].DataContext.TogglePinCommand}" CommandParameter="{Binding}">
-                      <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="{StaticResource IconPin}" Width="14" Height="14" />
-                        <TextBlock Text="{Binding PinButtonText}" />
-                      </StackPanel>
-                    </Button>
-                    <Button ToolTip.Tip="Show in file manager" Command="{ReflectionBinding $parent[UserControl].DataContext.OpenFolderCommand}" CommandParameter="{Binding}">
-                      <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="{StaticResource IconFolder}" Width="14" Height="14" />
-                        <TextBlock Text="Open Folder" />
-                      </StackPanel>
-                    </Button>
-                    <Button Classes="danger" ToolTip.Tip="Delete this game file" Command="{ReflectionBinding $parent[UserControl].DataContext.DeleteCommand}" CommandParameter="{Binding}">
-                      <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="{StaticResource IconDelete}" Width="14" Height="14" Foreground="White" />
-                        <TextBlock Text="Delete" />
-                      </StackPanel>
-                    </Button>
-                  </StackPanel>
-                </Grid>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </ScrollViewer>
+                  </Button>
+                  <Button ToolTip.Tip="Show in file manager" Command="{ReflectionBinding $parent[UserControl].DataContext.OpenFolderCommand}" CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <PathIcon Data="{StaticResource IconFolder}" Width="14" Height="14" />
+                      <TextBlock Text="Open Folder" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="danger" ToolTip.Tip="Delete this game file" Command="{ReflectionBinding $parent[UserControl].DataContext.DeleteCommand}" CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <PathIcon Data="{StaticResource IconDelete}" Width="14" Height="14" Foreground="White" />
+                      <TextBlock Text="Delete" />
+                    </StackPanel>
+                  </Button>
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
     </Panel>
   </DockPanel>
 </UserControl>

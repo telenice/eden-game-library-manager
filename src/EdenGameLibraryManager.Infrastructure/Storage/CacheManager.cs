@@ -13,14 +13,16 @@ public sealed class CacheManager(ILocalLibraryService library, ISettingsService 
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public Task<StorageInfo> GetStorageInfoAsync(long reservedBytes, CancellationToken cancellationToken)
+    public async Task<StorageInfo> GetStorageInfoAsync(long reservedBytes, CancellationToken cancellationToken)
     {
         var games = library.Games;
         var dir = settings.Current.GamesDirectory;
-        var space = string.IsNullOrWhiteSpace(dir) ? null : VolumeInfo.GetSpace(dir);
+        // Querying the volume can block for seconds (a sleeping hard drive spinning up, a network share),
+        // and callers are on the UI thread, so keep it off the caller's thread.
+        var space = string.IsNullOrWhiteSpace(dir) ? null : await Task.Run(() => VolumeInfo.GetSpace(dir), cancellationToken);
         long? diskFree = space?.Free, diskTotal = space?.Total;
 
-        return Task.FromResult(new StorageInfo
+        return new StorageInfo
         {
             CacheLimitBytes = settings.Current.CacheLimitBytes,
             ManagedBytes = games.Where(g => g.IsManaged).Sum(g => g.ActualSize),
@@ -30,7 +32,7 @@ public sealed class CacheManager(ILocalLibraryService library, ISettingsService 
             DiskTotalBytes = diskTotal,
             GameCount = games.Count,
             PinnedCount = games.Count(g => g.IsPinned),
-        });
+        };
     }
 
     public CachePlan Plan(long requiredBytes, long reservedBytes)

@@ -277,14 +277,20 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
             .ThenBy(v => v.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-        Items.Clear();
         foreach (var vm in list)
         {
             var hasBase = vm.Game.ContentType != ContentType.Base && bases.ContainsKey(vm.GroupKey);
             vm.IsChild = hasBase;
             vm.ParentText = hasBase ? $"{vm.TypeText} for {GroupName(vm)}" : null;
-            Items.Add(vm);
             vm.EnsureCover(_metadata);
+        }
+
+        // The library raises Changed often (rescans, catalogue refreshes, finished downloads); only
+        // rebuild the list when its contents or order actually changed, since rebuilding recreates every row.
+        if (!Items.SequenceEqual(list))
+        {
+            Items.Clear();
+            foreach (var vm in list) Items.Add(vm);
         }
         OnPropertyChanged(nameof(IsEmpty));
     }
