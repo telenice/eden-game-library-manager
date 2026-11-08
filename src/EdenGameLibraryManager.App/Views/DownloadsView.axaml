@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:EdenGameLibraryManager.App.ViewModels"
+             x:Class="EdenGameLibraryManager.App.Views.DownloadsView"
+             x:DataType="vm:DownloadsViewModel">
+
+  <DockPanel Margin="24,20,24,0">
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+      <StackPanel>
+        <TextBlock Text="Downloads" Classes="h1" />
+        <TextBlock Text="{Binding SummaryText}" Classes="muted" />
+      </StackPanel>
+      <Button Grid.Column="1" Content="Clear finished" Command="{Binding ClearFinishedCommand}" IsEnabled="{Binding HasFinished}" VerticalAlignment="Center" />
+    </Grid>
+
+    <Panel>
+      <TextBlock Text="Nothing queued. Pick a game in Available Games to start a download." Classes="muted"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsEmpty}" />
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,24">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:DownloadItemViewModel">
+              <Border Classes="card" Margin="0,0,0,10" Padding="16">
+                <StackPanel Spacing="8">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Subtitle}" Classes="muted small" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                      <Button Content="Pause" IsVisible="{Binding CanPause}"
+                              Command="{ReflectionBinding $parent[UserControl].DataContext.PauseCommand}" CommandParameter="{Binding}" />
+                      <Button Content="Resume" Classes="accent" IsVisible="{Binding CanResume}"
+                              Command="{ReflectionBinding $parent[UserControl].DataContext.ResumeCommand}" CommandParameter="{Binding}" />
+                      <Button Content="Retry" Classes="accent" IsVisible="{Binding CanRetry}"
+                              Command="{ReflectionBinding $parent[UserControl].DataContext.RetryCommand}" CommandParameter="{Binding}" />
+                      <Button Content="Cancel" IsVisible="{Binding CanCancel}"
+                              Command="{ReflectionBinding $parent[UserControl].DataContext.CancelCommand}" CommandParameter="{Binding}" />
+                    </StackPanel>
+                  </Grid>
+                  <ProgressBar Value="{Binding Percent}" Maximum="100" IsIndeterminate="{Binding IsIndeterminate}" Height="8" MinHeight="8" />
+                  <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                    <TextBlock Text="{Binding ProgressText}" Classes="small" />
+                    <TextBlock Grid.Column="1" Classes="small muted" Margin="16,0,0,0">
+                      <Run Text="Speed " /><Run Text="{Binding SpeedText}" />
+                    </TextBlock>
+                    <TextBlock Grid.Column="2" Classes="small muted" Margin="16,0,0,0">
+                      <Run Text="ETA " /><Run Text="{Binding EtaText}" />
+                    </TextBlock>
+                    <Border Grid.Column="3" Classes="badge neutral" Margin="16,0,0,0">
+                      <TextBlock Text="{Binding StatusText}" FontSize="11" />
+                    </Border>
+                  </Grid>
+                  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Classes="small" IsVisible="{Binding HasMessage}"
+                             Foreground="{DynamicResource WarningBrush}" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Panel>
+  </DockPanel>
+</UserControl>

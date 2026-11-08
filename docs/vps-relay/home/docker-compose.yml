@@ -1,0 +1,38 @@
+# Home Docker host (where AeroFoil runs): WireGuard client to the VPS plus a one-port forwarder.
+#
+# The VPS reaches 10.13.13.2:8465, which socat forwards to the "aerofoil" container. Nothing else is
+# reachable from the tunnel: IP forwarding stays off in this network namespace, so the VPS cannot get
+# to other containers or devices on your LAN.
+services:
+  wireguard-relay:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard-relay
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./wireguard:/config          # put wg0.conf in ./wireguard/wg_confs/
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    networks:
+      - aerofoil_net
+    restart: unless-stopped
+
+  aerofoil-forward:
+    image: alpine/socat:latest
+    container_name: aerofoil-forward
+    # Shares the WireGuard container's network: listens on 10.13.13.2:8465 and resolves "aerofoil"
+    # through Docker DNS on every connection, so an AeroFoil IP change is picked up automatically.
+    network_mode: service:wireguard-relay
+    command: TCP-LISTEN:8465,fork,reuseaddr TCP:aerofoil:8465
+    depends_on:
+      - wireguard-relay
+    restart: unless-stopped
+
+networks:
+  aerofoil_net:
+    external: true
+    name: aerofoil_net               # the Docker network your AeroFoil container is on (docker network ls)

@@ -1,0 +1,116 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:EdenGameLibraryManager.App.ViewModels"
+        xmlns:v="using:EdenGameLibraryManager.App.Views"
+        xmlns:m="using:EdenGameLibraryManager.Core.Models"
+        mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
+        x:Class="EdenGameLibraryManager.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/app.ico"
+        Title="Eden Game Library Manager"
+        Width="1280" Height="820" MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:AvailableGamesViewModel"><v:AvailableGamesView /></DataTemplate>
+    <DataTemplate DataType="vm:DownloadedGamesViewModel"><v:DownloadedGamesView /></DataTemplate>
+    <DataTemplate DataType="vm:DownloadsViewModel"><v:DownloadsView /></DataTemplate>
+    <DataTemplate DataType="vm:SettingsViewModel"><v:SettingsView /></DataTemplate>
+  </Window.DataTemplates>
+
+  <Panel>
+    <!-- Main shell -->
+    <Grid ColumnDefinitions="220,*" IsVisible="{Binding !IsSetupMode}">
+      <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,1,0">
+        <DockPanel Margin="12,16">
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="8,0,0,20">
+            <Image Source="/Assets/app.png" Width="32" Height="32" />
+            <StackPanel VerticalAlignment="Center">
+              <TextBlock Text="Eden Library" FontWeight="SemiBold" FontSize="15" />
+              <TextBlock Text="AeroFoil companion" Classes="muted small" />
+            </StackPanel>
+          </StackPanel>
+
+          <!-- Server profile switcher -->
+          <StackPanel DockPanel.Dock="Top" Margin="0,0,0,20" Spacing="4">
+            <TextBlock Text="Server" Classes="label" Margin="4,0,0,0" />
+            <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding ActiveProfile}" HorizontalAlignment="Stretch"
+                      IsEnabled="{Binding HasMultipleProfiles}" ToolTip.Tip="Switch AeroFoil server profile (add more in Settings)">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="m:ServerProfile">
+                  <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+
+          <!-- Status -->
+          <Border DockPanel.Dock="Bottom" Classes="card" Padding="12" Margin="0,12,0,0">
+            <StackPanel Spacing="6">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Ellipse Width="10" Height="10" Fill="{DynamicResource SuccessBrush}" IsVisible="{Binding IsOnline}" />
+                <Ellipse Width="10" Height="10" Fill="{DynamicResource MutedTextBrush}" IsVisible="{Binding IsOffline}" />
+                <Ellipse Width="10" Height="10" Fill="{DynamicResource DangerBrush}" IsVisible="{Binding IsConnectionError}" />
+                <Ellipse Width="10" Height="10" Fill="{DynamicResource WarningBrush}" IsVisible="{Binding IsConnecting}" />
+                <TextBlock Text="{Binding ConnectionText}" TextWrapping="Wrap" FontSize="12" MaxWidth="150" />
+              </StackPanel>
+              <TextBlock Text="{Binding StorageText}" Classes="muted small" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <StackPanel Spacing="4">
+            <Button Classes="nav" Classes.selected="{Binding IsAvailablePage}"
+                    Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:Page.Available}">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="{StaticResource IconCloud}" Width="18" Height="18" />
+                <TextBlock Text="Available Games" />
+              </StackPanel>
+            </Button>
+            <Button Classes="nav" Classes.selected="{Binding IsDownloadedPage}"
+                    Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:Page.Downloaded}">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="{StaticResource IconLibrary}" Width="18" Height="18" />
+                <TextBlock Text="Downloaded Games" />
+              </StackPanel>
+            </Button>
+            <Button Classes="nav" Classes.selected="{Binding IsDownloadsPage}"
+                    Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:Page.Downloads}">
+              <Grid ColumnDefinitions="Auto,*,Auto" Width="170">
+                <PathIcon Data="{StaticResource IconDownload}" Width="18" Height="18" />
+                <TextBlock Grid.Column="1" Text="Downloads" Margin="12,0,0,0" />
+                <Border Grid.Column="2" Background="{DynamicResource AccentBrush}" CornerRadius="9" Padding="7,1"
+                        IsVisible="{Binding DownloadsBadge, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                  <TextBlock Text="{Binding DownloadsBadge}" FontSize="11" Foreground="White" />
+                </Border>
+              </Grid>
+            </Button>
+            <Button Classes="nav" Classes.selected="{Binding IsSettingsPage}"
+                    Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:Page.Settings}">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="{StaticResource IconSettings}" Width="18" Height="18" />
+                <TextBlock Text="Settings" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
+      <DockPanel Grid.Column="1">
+        <Border DockPanel.Dock="Top" Classes="warning" Margin="24,16,24,0"
+                IsVisible="{Binding StartupError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+          <TextBlock Text="{Binding StartupError}" TextWrapping="Wrap" />
+        </Border>
+        <ContentControl Content="{Binding CurrentPage}" />
+      </DockPanel>
+    </Grid>
+
+    <!-- First-run wizard -->
+    <ContentControl Content="{Binding Setup}" IsVisible="{Binding IsSetupMode}">
+      <ContentControl.DataTemplates>
+        <DataTemplate DataType="vm:SetupViewModel"><v:SetupView /></DataTemplate>
+      </ContentControl.DataTemplates>
+    </ContentControl>
+  </Panel>
+</Window>

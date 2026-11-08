@@ -1,0 +1,13 @@
+* text=auto
+
+# Shell scripts and CI files must keep LF endings to run on macOS/Linux runners.
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.conf text eol=lf
+
+# Windows batch files need CRLF.
+*.cmd text eol=crlf
+
+*.png binary
+*.ico binary

@@ -1,0 +1,276 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:EdenGameLibraryManager.App.ViewModels"
+             xmlns:imaging="using:Avalonia.Media.Imaging"
+             x:Class="EdenGameLibraryManager.App.Views.AvailableGamesView"
+             x:DataType="vm:AvailableGamesViewModel">
+
+  <Grid ColumnDefinitions="*,Auto">
+    <DockPanel Grid.Column="0" Margin="24,20,24,0">
+      <!-- Header + toolbar -->
+      <StackPanel DockPanel.Dock="Top" Spacing="14">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel>
+            <TextBlock Text="Available Games" Classes="h1" />
+            <TextBlock Text="{Binding SummaryText}" Classes="muted" />
+          </StackPanel>
+          <Button Grid.Column="1" Command="{Binding RefreshCommand}" IsEnabled="{Binding !IsRefreshing}" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <PathIcon Data="{StaticResource IconRefresh}" Width="16" Height="16" />
+              <TextBlock Text="Refresh" />
+            </StackPanel>
+          </Button>
+        </Grid>
+
+        <WrapPanel Orientation="Horizontal">
+          <TextBox Text="{Binding SearchText}" Watermark="Search by name or title ID" Width="280" Margin="0,0,12,8" />
+          <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}" Width="170" Margin="0,0,16,8" />
+          <CheckBox Content="Base games" IsChecked="{Binding ShowBase}" Margin="0,0,12,8" />
+          <CheckBox Content="Updates" IsChecked="{Binding ShowUpdates}" Margin="0,0,12,8" />
+          <CheckBox Content="DLC" IsChecked="{Binding ShowDlc}" Margin="0,0,12,8" />
+          <CheckBox Content="Show downloaded" IsChecked="{Binding ShowDownloaded}" Margin="0,0,12,8" />
+          <CheckBox Content="Group by game" IsChecked="{Binding GroupByGame}" Margin="0,0,16,8"
+                    ToolTip.Tip="Show one card per game with its updates and DLC" />
+          <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,0,8">
+            <Button Padding="8" Classes.accent="{Binding IsGridView}" Command="{Binding SetGridViewCommand}" ToolTip.Tip="Grid view">
+              <PathIcon Data="{StaticResource IconGrid}" Width="16" Height="16" />
+            </Button>
+            <Button Padding="8" Classes.accent="{Binding IsListView}" Command="{Binding SetListViewCommand}" ToolTip.Tip="List view">
+              <PathIcon Data="{StaticResource IconList}" Width="16" Height="16" />
+            </Button>
+          </StackPanel>
+        </WrapPanel>
+
+        <Border Classes="warning" IsVisible="{Binding HasWarning}">
+          <TextBlock Text="{Binding WarningText}" TextWrapping="Wrap" />
+        </Border>
+        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsRefreshing}" Height="3" MinHeight="3" />
+      </StackPanel>
+
+      <Panel>
+        <TextBlock Text="{Binding EmptyText}" Classes="muted" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center" IsVisible="{Binding IsEmpty}" />
+
+        <!-- Grid view -->
+        <ScrollViewer IsVisible="{Binding ShowItemGrid}" Margin="0,12,0,0">
+          <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,24">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:GameItemViewModel">
+                <Button Classes="card" Width="184" Margin="0,0,14,14"
+                        Command="{ReflectionBinding $parent[UserControl].DataContext.SelectGameCommand}" CommandParameter="{Binding}">
+                  <StackPanel>
+                    <Panel Height="182" Background="{DynamicResource PlaceholderBrush}">
+                      <PathIcon Data="{StaticResource IconGamepad}" Width="56" Height="56" Opacity="0.35" IsVisible="{Binding !HasCover}" />
+                      <Image Source="{Binding Cover}" Stretch="UniformToFill" />
+                      <Border Classes="badge" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Background="#CC0F1117">
+                        <TextBlock Text="{Binding TypeText}" FontSize="11" Foreground="White" />
+                      </Border>
+                      <Border Classes="badge" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Background="{DynamicResource WarningBrush}"
+                              IsVisible="{Binding IsPossibleMatch}" ToolTip.Tip="A similar local file exists but could not be verified">
+                        <TextBlock Text="Similar file" FontSize="11" Foreground="Black" />
+                      </Border>
+                    </Panel>
+                    <StackPanel Margin="12,10,12,12" Spacing="6">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Height="38" />
+                      <TextBlock Text="{Binding Subtitle}" Classes="muted small" TextTrimming="CharacterEllipsis" />
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding SizeText}" VerticalAlignment="Center" FontSize="13" />
+                        <Button Grid.Column="1" Classes="accent" Padding="10,4" Content="{Binding DownloadButtonText}"
+                                IsEnabled="{Binding CanDownload}"
+                                Command="{ReflectionBinding $parent[UserControl].DataContext.DownloadCommand}" CommandParameter="{Binding}" />
+                      </Grid>
+                    </StackPanel>
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- List view -->
+        <ScrollViewer IsVisible="{Binding ShowItemList}" Margin="0,12,0,0">
+          <ItemsControl ItemsSource="{Binding Items}" Margin="0,0,0,24">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:GameItemViewModel">
+                <Button Classes="card" Margin="0,0,0,8" HorizontalAlignment="Stretch"
+                        Command="{ReflectionBinding $parent[UserControl].DataContext.SelectGameCommand}" CommandParameter="{Binding}">
+                  <Grid ColumnDefinitions="64,*,110,Auto" Margin="10">
+                    <Panel Width="56" Height="56" Background="{DynamicResource PlaceholderBrush}">
+                      <PathIcon Data="{StaticResource IconGamepad}" Width="24" Height="24" Opacity="0.35" IsVisible="{Binding !HasCover}" />
+                      <Image Source="{Binding Cover}" Stretch="UniformToFill" />
+                    </Panel>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Subtitle}" Classes="muted small" />
+                      <TextBlock Text="Similar local file found (unverified)" Classes="small" Foreground="{DynamicResource WarningBrush}" IsVisible="{Binding IsPossibleMatch}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Text="{Binding SizeText}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0" />
+                    <Button Grid.Column="3" Classes="accent" Content="{Binding DownloadButtonText}" IsEnabled="{Binding CanDownload}" VerticalAlignment="Center"
+                            Command="{ReflectionBinding $parent[UserControl].DataContext.DownloadCommand}" CommandParameter="{Binding}" />
+                  </Grid>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Grouped grid: one card per game with its updates and DLC -->
+        <ScrollViewer IsVisible="{Binding ShowGroupGrid}" Margin="0,12,0,0">
+          <ItemsControl ItemsSource="{Binding Groups}" Margin="0,0,0,24">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:GameGroupViewModel">
+                <Button Classes="card" Width="184" Margin="0,0,14,14"
+                        Command="{ReflectionBinding $parent[UserControl].DataContext.SelectGroupCommand}" CommandParameter="{Binding}">
+                  <StackPanel>
+                    <Panel Height="182" Background="{DynamicResource PlaceholderBrush}">
+                      <PathIcon Data="{StaticResource IconGamepad}" Width="56" Height="56" Opacity="0.35" IsVisible="{Binding !Primary.HasCover}" />
+                      <Image Source="{Binding Primary.Cover}" Stretch="UniformToFill" />
+                      <Border Classes="badge" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Background="{DynamicResource SuccessBrush}"
+                              IsVisible="{Binding HasNewContent}">
+                        <TextBlock Text="{Binding NewContentText}" FontSize="11" Foreground="Black" />
+                      </Border>
+                    </Panel>
+                    <StackPanel Margin="12,10,12,12" Spacing="6">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" Height="38" />
+                      <TextBlock Text="{Binding Summary}" Classes="muted small" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding StatusText}" Classes="small" TextTrimming="CharacterEllipsis" />
+                      <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="10,4"
+                              Content="{Binding DownloadButtonText}" IsEnabled="{Binding CanDownload}"
+                              ToolTip.Tip="Downloads every listed item of this game that isn't local yet"
+                              Command="{ReflectionBinding $parent[UserControl].DataContext.DownloadGroupCommand}" CommandParameter="{Binding}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Grouped list -->
+        <ScrollViewer IsVisible="{Binding ShowGroupList}" Margin="0,12,0,0">
+          <ItemsControl ItemsSource="{Binding Groups}" Margin="0,0,0,24">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:GameGroupViewModel">
+                <Button Classes="card" Margin="0,0,0,8" HorizontalAlignment="Stretch"
+                        Command="{ReflectionBinding $parent[UserControl].DataContext.SelectGroupCommand}" CommandParameter="{Binding}">
+                  <Grid ColumnDefinitions="64,*,Auto,Auto" Margin="10">
+                    <Panel Width="56" Height="56" Background="{DynamicResource PlaceholderBrush}">
+                      <PathIcon Data="{StaticResource IconGamepad}" Width="24" Height="24" Opacity="0.35" IsVisible="{Binding !Primary.HasCover}" />
+                      <Image Source="{Binding Primary.Cover}" Stretch="UniformToFill" />
+                    </Panel>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <Border Classes="badge" Background="{DynamicResource SuccessBrush}" IsVisible="{Binding HasNewContent}">
+                          <TextBlock Text="{Binding NewContentText}" FontSize="11" Foreground="Black" />
+                        </Border>
+                      </StackPanel>
+                      <TextBlock Text="{Binding Summary}" Classes="muted small" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Text="{Binding StatusText}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <Button Grid.Column="3" Classes="accent" Content="{Binding DownloadButtonText}" IsEnabled="{Binding CanDownload}" VerticalAlignment="Center"
+                            Command="{ReflectionBinding $parent[UserControl].DataContext.DownloadGroupCommand}" CommandParameter="{Binding}" />
+                  </Grid>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Panel>
+    </DockPanel>
+
+    <!-- Details panel -->
+    <Border Grid.Column="1" Width="380" IsVisible="{Binding HasDetails}" Background="{DynamicResource PanelBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1,0,0,0">
+      <ContentControl Content="{Binding Details}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate DataType="vm:GameDetailsViewModel">
+            <DockPanel>
+              <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="20,16,12,0">
+                <TextBlock Text="Details" Classes="h2" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Classes="icon" ToolTip.Tip="Close"
+                        Command="{ReflectionBinding $parent[UserControl].DataContext.CloseDetailsCommand}">
+                  <PathIcon Data="{StaticResource IconClose}" Width="14" Height="14" />
+                </Button>
+              </Grid>
+              <ScrollViewer>
+                <StackPanel Margin="20,12,20,24" Spacing="14">
+                  <Panel Height="200" Background="{DynamicResource PlaceholderBrush}" ClipToBounds="True">
+                    <PathIcon Data="{StaticResource IconGamepad}" Width="64" Height="64" Opacity="0.35" IsVisible="{Binding !Game.HasCover}" />
+                    <Image Source="{Binding Game.Cover}" Stretch="Uniform" />
+                  </Panel>
+                  <TextBlock Text="{Binding Game.Name}" Classes="h2" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding LocalStatusText}" TextWrapping="Wrap" Classes="small" />
+                  <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                          Content="{Binding Game.DownloadButtonText}" IsEnabled="{Binding Game.CanDownload}"
+                          Command="{ReflectionBinding $parent[UserControl].DataContext.DownloadCommand}" CommandParameter="{Binding Game}" />
+
+                  <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" >
+                    <TextBlock Grid.Row="0" Text="Size" Classes="label" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SizeText}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                    <TextBlock Grid.Row="1" Text="Type" Classes="label" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Game.TypeText}" Margin="0,0,0,6" />
+                    <TextBlock Grid.Row="2" Text="Version" Classes="label" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Game.VersionText}" Margin="0,0,0,6" />
+                    <TextBlock Grid.Row="3" Text="Title ID" Classes="label" />
+                    <SelectableTextBlock Grid.Row="3" Grid.Column="1" Text="{Binding TitleIdText}" Margin="0,0,0,6" />
+                    <TextBlock Grid.Row="4" Text="App ID" Classes="label" />
+                    <SelectableTextBlock Grid.Row="4" Grid.Column="1" Text="{Binding AppIdText}" Margin="0,0,0,6" />
+                    <TextBlock Grid.Row="5" Text="Format" Classes="label" />
+                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Game.FormatText}" Margin="0,0,0,6" />
+                    <TextBlock Grid.Row="6" Text="Released" Classes="label" />
+                    <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding ReleaseDateText}" Margin="0,0,0,6" />
+                    <TextBlock Grid.Row="7" Text="File" Classes="label" />
+                    <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding FileNameText}" TextWrapping="Wrap" />
+                  </Grid>
+
+                  <TextBlock Text="{Binding FormatNote}" Classes="muted small" TextWrapping="Wrap" IsVisible="{Binding HasFormatNote}" />
+
+                  <!-- Base game, updates and DLC for this title -->
+                  <StackPanel Spacing="8" IsVisible="{Binding HasRelated}">
+                    <TextBlock Text="Base game, updates and DLC" FontWeight="SemiBold" />
+                    <ItemsControl ItemsSource="{Binding Related}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:GameItemViewModel">
+                          <Border Classes="card" Padding="10,8" Margin="0,0,0,6">
+                            <Grid ColumnDefinitions="*,Auto">
+                              <StackPanel Spacing="2">
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="13" />
+                                <TextBlock Classes="muted small">
+                                  <Run Text="{Binding TypeText}" /><Run Text=" · " /><Run Text="{Binding VersionText}" /><Run Text=" · " /><Run Text="{Binding SizeText}" />
+                                </TextBlock>
+                              </StackPanel>
+                              <Button Grid.Column="1" Classes="accent" Padding="10,4" VerticalAlignment="Center"
+                                      Content="{Binding DownloadButtonText}" IsEnabled="{Binding CanDownload}"
+                                      Command="{ReflectionBinding $parent[UserControl].DataContext.DownloadCommand}" CommandParameter="{Binding}" />
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                  <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoading}" />
+                  <TextBlock Text="{Binding Description}" TextWrapping="Wrap" IsVisible="{Binding HasDescription}" LineHeight="20" />
+
+                  <ItemsControl ItemsSource="{Binding Screenshots}" IsVisible="{Binding HasScreenshots}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="imaging:Bitmap">
+                        <Image Source="{Binding}" Stretch="Uniform" Margin="0,0,0,10" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </ScrollViewer>
+            </DockPanel>
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+    </Border>
+  </Grid>
+</UserControl>

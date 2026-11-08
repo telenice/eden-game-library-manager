@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:EdenGameLibraryManager.App.ViewModels"
+             xmlns:v="using:EdenGameLibraryManager.App.Views"
+             x:Class="EdenGameLibraryManager.App.Views.SetupView"
+             x:DataType="vm:SetupViewModel">
+
+  <ScrollViewer>
+    <Border Classes="section" Width="640" Margin="24,40" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32">
+      <StackPanel Spacing="20">
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <Image Source="/Assets/app.png" Width="48" Height="48" />
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="Welcome to Eden Game Library Manager" Classes="h2" />
+            <TextBlock Text="{Binding StepTitle}" Classes="muted" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Step 1 -->
+        <StackPanel Spacing="12" IsVisible="{Binding IsStep1}">
+          <TextBlock TextWrapping="Wrap"
+                     Text="Enter the address of your AeroFoil server and your AeroFoil account. Use Test Connection to check that sign-in and catalogue access work." />
+          <v:ConnectionFormView DataContext="{Binding Connection}" />
+        </StackPanel>
+
+        <!-- Step 2 -->
+        <StackPanel Spacing="12" IsVisible="{Binding IsStep2}">
+          <TextBlock TextWrapping="Wrap"
+                     Text="Choose the folder where downloaded games will be saved. Add the same folder to Eden's game directories (Eden: Emulation > Configure > General > Game List / 'Add New Game Directory') so it finds new games automatically." />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox Text="{Binding GamesDirectory}" Watermark="e.g. D:\Switch Games" />
+            <Button Grid.Column="1" Content="Browse…" Margin="8,0,0,0" Command="{Binding BrowseCommand}" />
+          </Grid>
+          <TextBlock Classes="muted small" TextWrapping="Wrap"
+                     Text="Unfinished downloads are kept in the app's data folder, so the emulator never sees incomplete files." />
+        </StackPanel>
+
+        <!-- Step 3 -->
+        <StackPanel Spacing="12" IsVisible="{Binding IsStep3}">
+          <TextBlock TextWrapping="Wrap" Text="Limit how much space games downloaded by this app may use. Set 0 for no limit." />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <NumericUpDown Value="{Binding CacheLimitGb}" Minimum="0" Maximum="100000" Increment="10" FormatString="0.#" Width="160" />
+            <TextBlock Text="GB" VerticalAlignment="Center" />
+          </StackPanel>
+          <CheckBox IsChecked="{Binding AutoCleanup}" Content="Automatically remove least recently used downloads when space is needed" />
+          <TextBlock Classes="muted small" TextWrapping="Wrap"
+                     Text="Off by default: you'll be asked which games to remove instead. Pinned and manually added games are never removed automatically." />
+        </StackPanel>
+
+        <!-- Step 4 -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsStep4}">
+          <TextBlock Text="You're all set." FontWeight="SemiBold" />
+          <TextBlock TextWrapping="Wrap">
+            <Run Text="Server: " /><Run Text="{Binding Connection.ServerUrl}" FontWeight="SemiBold" />
+          </TextBlock>
+          <TextBlock TextWrapping="Wrap">
+            <Run Text="Games directory: " /><Run Text="{Binding GamesDirectory}" FontWeight="SemiBold" />
+          </TextBlock>
+          <TextBlock TextWrapping="Wrap">
+            <Run Text="Cache limit: " /><Run Text="{Binding CacheSummary}" FontWeight="SemiBold" />
+          </TextBlock>
+          <TextBlock Classes="muted small" TextWrapping="Wrap"
+                     Text="You can change any of this later in Settings. You are responsible for having the rights to the content you download." />
+        </StackPanel>
+
+        <Border Padding="12,8" CornerRadius="8" Background="#33E5484D" BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1"
+                IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+          <TextBlock Text="{Binding Error}" TextWrapping="Wrap" />
+        </Border>
+
+        <Grid ColumnDefinitions="*,Auto">
+          <Button Content="Back" Command="{Binding BackCommand}" IsVisible="{Binding CanGoBack}" />
+          <Button Grid.Column="1" Classes="accent" Content="{Binding NextText}" Command="{Binding NextCommand}"
+                  IsEnabled="{Binding !IsBusy}" MinWidth="110" HorizontalContentAlignment="Center" />
+        </Grid>
+      </StackPanel>
+    </Border>
+  </ScrollViewer>
+</UserControl>

@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:EdenGameLibraryManager.App.ViewModels"
+             x:Class="EdenGameLibraryManager.App.Views.ConnectionFormView"
+             x:DataType="vm:ConnectionFormViewModel">
+  <StackPanel Spacing="12">
+    <StackPanel>
+      <TextBlock Text="Profile name (optional)" Classes="label" />
+      <TextBox Text="{Binding ProfileName}" Watermark="e.g. Home server" />
+    </StackPanel>
+    <StackPanel>
+      <TextBlock Text="AeroFoil server URL" Classes="label" />
+      <TextBox Text="{Binding ServerUrl}" Watermark="https://aerofoil.example.com" />
+    </StackPanel>
+    <Grid ColumnDefinitions="*,12,*">
+      <StackPanel>
+        <TextBlock Text="Username" Classes="label" />
+        <TextBox Text="{Binding Username}" />
+      </StackPanel>
+      <StackPanel Grid.Column="2">
+        <TextBlock Text="Password" Classes="label" />
+        <TextBox Text="{Binding Password}" PasswordChar="•" RevealPassword="False" Classes="revealPasswordButton" />
+      </StackPanel>
+    </Grid>
+    <CheckBox IsChecked="{Binding RememberPassword}" IsEnabled="{Binding SupportsPasswordPersistence}" Content="Remember password" />
+    <TextBlock Text="{Binding PersistenceNote}" Classes="muted small" TextWrapping="Wrap" />
+    <CheckBox IsChecked="{Binding AllowInsecureHttp}" Content="Allow insecure HTTP (trusted LAN or VPN servers only)" />
+    <TextBlock Classes="small" TextWrapping="Wrap" Foreground="{DynamicResource WarningBrush}" IsVisible="{Binding IsHttpUrl}"
+               Text="Plain HTTP sends your password and files unencrypted. Only use it on a private network you trust; use HTTPS over the internet." />
+
+    <StackPanel Orientation="Horizontal" Spacing="12">
+      <Button Content="Test Connection" Command="{Binding TestCommand}" IsEnabled="{Binding !IsTesting}" />
+      <ProgressBar IsIndeterminate="True" Width="120" IsVisible="{Binding IsTesting}" VerticalAlignment="Center" />
+    </StackPanel>
+    <Border Padding="12,8" CornerRadius="8" Background="#332EC27E" BorderBrush="{DynamicResource SuccessBrush}" BorderThickness="1"
+            IsVisible="{Binding TestPassed}">
+      <TextBlock Text="{Binding TestMessage}" TextWrapping="Wrap" />
+    </Border>
+    <Border Padding="12,8" CornerRadius="8" Background="#33E5484D" BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1"
+            IsVisible="{Binding TestFailed}">
+      <TextBlock Text="{Binding TestMessage}" TextWrapping="Wrap" />
+    </Border>
+  </StackPanel>
+</UserControl>

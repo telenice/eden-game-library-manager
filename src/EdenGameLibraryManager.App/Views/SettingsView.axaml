@@ -1,0 +1,128 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:EdenGameLibraryManager.App.ViewModels"
+             xmlns:v="using:EdenGameLibraryManager.App.Views"
+             x:Class="EdenGameLibraryManager.App.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+  <DockPanel>
+    <Border DockPanel.Dock="Bottom" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"
+            BorderThickness="0,1,0,0" Padding="24,12">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" TextWrapping="Wrap" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button Content="Revert" Command="{Binding RevertCommand}" />
+          <Button Content="Save settings" Classes="accent" Command="{Binding SaveCommand}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <ScrollViewer>
+      <StackPanel Margin="24,20,24,24" Spacing="16" MaxWidth="820" HorizontalAlignment="Left">
+        <TextBlock Text="Settings" Classes="h1" />
+
+        <Border Classes="section">
+          <StackPanel Spacing="12">
+            <TextBlock Text="AeroFoil server profiles" Classes="h2" />
+            <TextBlock Classes="muted small" TextWrapping="Wrap"
+                       Text="Add a profile for each AeroFoil server you use and switch between them from the sidebar. All profiles share the games directory and cache settings below." />
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ConnectionFormViewModel">
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <Button Grid.Column="1" Content="Add server" Margin="8,0,0,0" Command="{Binding AddProfileCommand}" />
+              <Button Grid.Column="2" Content="Remove" Margin="8,0,0,0" Command="{Binding RemoveProfileCommand}" />
+            </Grid>
+            <Panel IsVisible="{Binding HasSelectedProfile}">
+              <v:ConnectionFormView DataContext="{Binding SelectedProfile}" />
+            </Panel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="section">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Local games directory" Classes="h2" />
+            <TextBlock Classes="muted small" TextWrapping="Wrap"
+                       Text="Add this folder to Eden's game directories. Changing it does not move existing files." />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Text="{Binding GamesDirectory}" />
+              <Button Grid.Column="1" Content="Browse…" Margin="8,0,0,0" Command="{Binding BrowseCommand}" />
+            </Grid>
+            <CheckBox IsChecked="{Binding OrganizeByGame}" Content="Organise downloads into a folder per game ( Game name [TitleID] )" />
+            <TextBlock Classes="muted small" TextWrapping="Wrap"
+                       Text="The base game, its updates and DLC go into the same folder. In Eden, right-click this directory in the game list and enable &quot;Scan Subfolders&quot; so it finds games inside these folders." />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Button Content="Organise existing downloads" Command="{Binding OrganizeExistingCommand}" IsEnabled="{Binding !IsOrganizing}"
+                      ToolTip.Tip="Moves games downloaded by this app into per-game folders. Files you added yourself are not moved." />
+              <ProgressBar IsIndeterminate="True" Width="120" IsVisible="{Binding IsOrganizing}" VerticalAlignment="Center" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="section">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Storage" Classes="h2" />
+            <Grid ColumnDefinitions="320,*" RowDefinitions="Auto,Auto">
+              <TextBlock Text="Maximum cache size (GB, 0 = unlimited)" VerticalAlignment="Center" />
+              <NumericUpDown Grid.Column="1" Value="{Binding CacheLimitGb}" Minimum="0" Maximum="100000" Increment="10" FormatString="0.#" Width="160" HorizontalAlignment="Left" />
+            </Grid>
+            <CheckBox IsChecked="{Binding AutoCleanup}" Content="Automatic cleanup: remove least recently used downloaded games when space is needed" />
+            <TextBlock Classes="muted small" TextWrapping="Wrap"
+                       Text="Pinned games, active downloads, files in use and manually added files are never removed automatically." />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="section">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Downloads" Classes="h2" />
+            <Grid ColumnDefinitions="320,*" RowDefinitions="Auto,8,Auto">
+              <TextBlock Text="Simultaneous downloads" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding ConcurrencyOptions}" SelectedItem="{Binding MaxConcurrentDownloads}" Width="160" />
+              <TextBlock Grid.Row="2" Text="Speed limit (KB/s, 0 = unlimited)" VerticalAlignment="Center" />
+              <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding SpeedLimitKbps}" Minimum="0" Maximum="10000000" Increment="512" FormatString="0" Width="160" HorizontalAlignment="Left" />
+            </Grid>
+            <CheckBox IsChecked="{Binding IncludeUpdatesAndDlc}" Content="Include the latest update and all DLC when downloading a game" />
+            <CheckBox IsChecked="{Binding AutoResumeDownloads}" Content="Resume unfinished downloads when the app starts" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="section">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Catalogue" Classes="h2" />
+            <CheckBox IsChecked="{Binding AutoRefreshOnStartup}" Content="Refresh the catalogue on startup" />
+            <Grid ColumnDefinitions="320,*">
+              <TextBlock Text="Refresh interval (minutes, 0 = off)" VerticalAlignment="Center" />
+              <NumericUpDown Grid.Column="1" Value="{Binding RefreshIntervalMinutes}" Minimum="0" Maximum="1440" Increment="5" FormatString="0" Width="160" HorizontalAlignment="Left" />
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="section">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Appearance" Classes="h2" />
+            <Grid ColumnDefinitions="320,*">
+              <TextBlock Text="Theme" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme}" Width="160" />
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="section">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Application data" Classes="h2" />
+            <TextBlock Classes="muted small" TextWrapping="Wrap"
+                       Text="Settings, logs, the library database, artwork cache and partial downloads are stored here:" />
+            <Grid ColumnDefinitions="*,Auto">
+              <SelectableTextBlock Text="{Binding DataFolder}" VerticalAlignment="Center" TextWrapping="Wrap" />
+              <Button Grid.Column="1" Content="Open" Command="{Binding OpenDataFolderCommand}" Margin="8,0,0,0" />
+            </Grid>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

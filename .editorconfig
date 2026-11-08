@@ -1,0 +1,10 @@
+root = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+csharp_style_namespace_declarations = file_scoped:suggestion
+
+[*.{axaml,xml,csproj,props,json}]
+indent_style = space
+indent_size = 2

@@ -1,0 +1,157 @@
+using EdenGameLibraryManager.Core.Models;
+
+namespace EdenGameLibraryManager.Core.Interfaces;
+
+/// <summary>Supplies the currently configured server and credentials (null when not configured).</summary>
+public interface IConnectionProvider
+{
+    ServerConnection? GetConnection();
+}
+
+/// <summary>Low-level AeroFoil HTTP API client. All requests stay on the connection's origin.</summary>
+public interface IAeroFoilClient
+{
+    /// <summary>Fetches the catalogue (GET /api/remote/sections, falling back to /api/shop/sections).</summary>
+    Task<CatalogResult> GetCatalogAsync(ServerConnection connection, CancellationToken cancellationToken);
+
+    /// <summary>GET /api/shop/title-info/{titleId}; returns null when the server has no metadata.</summary>
+    Task<TitleDetails?> GetTitleInfoAsync(ServerConnection connection, string titleId, CancellationToken cancellationToken);
+
+    /// <summary>Downloads a small same-origin resource such as an icon or screenshot.</summary>
+    Task<byte[]> GetResourceAsync(ServerConnection connection, string url, long maxBytes, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Sends an authenticated request, following redirects only within the trusted origin.
+    /// The caller owns the returned response.
+    /// </summary>
+    Task<HttpResponseMessage> SendAsync(ServerConnection connection, HttpRequestMessage request, CancellationToken cancellationToken);
+}
+
+/// <summary>A source of downloadable games. AeroFoil is the only provider in this release.</summary>
+public interface IGameLibraryProvider
+{
+    string Name { get; }
+
+    /// <summary>Retrieves the live catalogue, falling back to the cached copy when the server is unreachable.</summary>
+    Task<CatalogResult> GetCatalogAsync(CancellationToken cancellationToken);
+
+    Task<CatalogResult?> LoadCachedCatalogAsync(CancellationToken cancellationToken);
+}
+
+public interface IGameMetadataService
+{
+    Task<TitleDetails?> GetDetailsAsync(string titleId, CancellationToken cancellationToken);
+
+    /// <summary>Returns a local file path for the image at <paramref name="url"/>, downloading and caching it if needed.</summary>
+    Task<string?> GetImageFileAsync(string url, CancellationToken cancellationToken);
+}
+
+public interface ILocalLibraryService
+{
+    IReadOnlyList<LocalGame> Games { get; }
+
+    /// <summary>Raised (debounced, on a background thread) when files change in the games directory.</summary>
+    event EventHandler? FilesChanged;
+
+    /// <summary>Reconciles manifest rows with the files that actually exist on disk.</summary>
+    Task<IReadOnlyList<LocalGame>> ScanAsync(CancellationToken cancellationToken);
+
+    Task<LocalGame> RegisterDownloadAsync(LocalGame game, CancellationToken cancellationToken);
+
+    Task DeleteAsync(LocalGame game, CancellationToken cancellationToken);
+
+    Task SetPinnedAsync(LocalGame game, bool pinned, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Moves a game file into <paramref name="targetDirectory"/> (inside the games directory) without
+    /// overwriting anything, and updates its manifest row. Returns the updated game.
+    /// </summary>
+    Task<LocalGame> MoveAsync(LocalGame game, string targetDirectory, CancellationToken cancellationToken);
+
+    Task MarkAccessedAsync(LocalGame game, CancellationToken cancellationToken);
+
+    /// <summary>True when another process (e.g. the emulator) has the file open.</summary>
+    bool IsFileInUse(LocalGame game);
+
+    void StartWatching();
+}
+
+public interface IDownloadManager
+{
+    IReadOnlyList<DownloadTask> Tasks { get; }
+
+    /// <summary>Raised on a background thread after a file has been moved into the games directory.</summary>
+    event EventHandler<DownloadTask>? TaskCompleted;
+
+    /// <summary>Raised when tasks are added, removed or change state.</summary>
+    event EventHandler? TasksChanged;
+
+    Task InitializeAsync(CancellationToken cancellationToken);
+
+    DownloadTask Enqueue(RemoteGameItem item);
+
+    void Pause(string taskId);
+    void Resume(string taskId);
+    Task CancelAsync(string taskId);
+    void Retry(string taskId);
+    void ClearFinished();
+
+    bool IsQueuedOrActive(string itemKey);
+
+    /// <summary>Total size of unfinished transfers, which is reserved against the cache limit.</summary>
+    long GetReservedBytes(string? excludeTaskId = null);
+
+    Task ShutdownAsync();
+}
+
+public interface ICacheManager
+{
+    Task<StorageInfo> GetStorageInfoAsync(long reservedBytes, CancellationToken cancellationToken);
+
+    CachePlan Plan(long requiredBytes, long reservedBytes);
+
+    /// <summary>
+    /// Makes room for <paramref name="requiredBytes"/>. In automatic mode this evicts least-recently
+    /// used managed games; otherwise it throws <see cref="CacheLimitExceededException"/>.
+    /// </summary>
+    Task EnsureCapacityAsync(long requiredBytes, long reservedBytes, CancellationToken cancellationToken);
+}
+
+public interface ISettingsService
+{
+    AppSettings Current { get; }
+    event EventHandler<AppSettings>? Changed;
+    Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Per-profile passwords: always kept in memory for the session, optionally in the OS secret store.</summary>
+public interface ICredentialStore
+{
+    bool SupportsPersistence { get; }
+    string? GetPassword(string profileId);
+
+    /// <summary>Keeps the password for this session and, when <paramref name="persist"/> is true, in the OS secret store.</summary>
+    void SetPassword(string profileId, string password, bool persist);
+
+    void Clear(string profileId);
+}
+
+/// <summary>SQLite-backed record of local games and unfinished downloads.</summary>
+public interface IManifestService
+{
+    Task InitializeAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<LocalGame>> GetLibraryItemsAsync(CancellationToken cancellationToken);
+    Task<LocalGame> UpsertLibraryItemAsync(LocalGame game, CancellationToken cancellationToken);
+    /// <summary>Inserts the row unless one already exists for the same path; returns the stored row.</summary>
+    Task<LocalGame> InsertLibraryItemIfMissingAsync(LocalGame game, CancellationToken cancellationToken);
+    Task UpdateLibraryItemStateAsync(long id, long actualSize, LocalGameStatus status, CancellationToken cancellationToken);
+    Task SetPinnedAsync(long id, bool pinned, CancellationToken cancellationToken);
+    Task SetLastAccessedAsync(long id, DateTimeOffset when, CancellationToken cancellationToken);
+    Task UpdateLibraryItemPathAsync(long id, string localPath, CancellationToken cancellationToken);
+    Task DeleteLibraryItemAsync(long id, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<DownloadRecord>> GetDownloadsAsync(CancellationToken cancellationToken);
+    Task SaveDownloadAsync(DownloadRecord record, CancellationToken cancellationToken);
+    Task DeleteDownloadAsync(string id, CancellationToken cancellationToken);
+}

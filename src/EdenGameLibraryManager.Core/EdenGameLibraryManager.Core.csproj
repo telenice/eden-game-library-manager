@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>EdenGameLibraryManager.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="EdenGameLibraryManager.Infrastructure" />
+    <InternalsVisibleTo Include="EdenGameLibraryManager.Tests" />
+  </ItemGroup>
+</Project>

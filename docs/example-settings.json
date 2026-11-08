@@ -1,0 +1,33 @@
+{
+  "profiles": [
+    {
+      "id": "default",
+      "name": "Home server",
+      "serverUrl": "https://aerofoil.example.com/",
+      "username": "alice",
+      "rememberPassword": true,
+      "allowInsecureHttp": false
+    },
+    {
+      "id": "3f9c2a71b0de",
+      "name": "Friend's server",
+      "serverUrl": "https://games.example.net/",
+      "username": "alice",
+      "rememberPassword": true,
+      "allowInsecureHttp": false
+    }
+  ],
+  "activeProfileId": "default",
+  "gamesDirectory": "D:\\Switch Games",
+  "cacheLimitGb": 100,
+  "autoCleanup": false,
+  "maxConcurrentDownloads": 1,
+  "autoResumeDownloads": true,
+  "autoRefreshOnStartup": true,
+  "refreshIntervalMinutes": 30,
+  "speedLimitKbps": 0,
+  "theme": "Dark",
+  "viewMode": "Grid",
+  "groupByGame": false,
+  "setupCompleted": true
+}

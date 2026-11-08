@@ -1,0 +1,163 @@
+# Builds Eden Game Library Manager for Windows, macOS and Linux on native runners.
+#
+#   Push a tag such as v1.2.0  -> tests, all packages, and a GitHub Release with them attached.
+#   Run manually (Actions tab)  -> tests and all packages as workflow artifacts (no release).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  version:
+    name: Determine version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        name: Version from tag (or props + run number)
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            base="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -n1)"
+            version="${base}-ci.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version: $version"
+
+  test:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test EdenGameLibraryManager.sln -c Release
+
+  windows:
+    name: Windows packages
+    needs: [version, test]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Publish win-x64 and win-arm64
+        shell: pwsh
+        run: ./build/publish.ps1 -Runtime win-x64,win-arm64 -SkipTests -Version "${{ needs.version.outputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            artifacts/*.zip
+            artifacts/*.sha256
+          if-no-files-found: error
+
+  macos:
+    name: macOS packages
+    needs: [version, test]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Publish osx-arm64 and osx-x64 (signed .app in a .dmg)
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          chmod +x build/publish.sh
+          for rid in osx-arm64 osx-x64; do build/publish.sh "$rid"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            artifacts/*.dmg
+            artifacts/*.sha256
+          if-no-files-found: error
+
+  linux:
+    name: Linux packages
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install appimagetool
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool"
+          echo "APPIMAGETOOL=$RUNNER_TEMP/appimagetool" >> "$GITHUB_ENV"
+      - name: Publish linux-x64 and linux-arm64 (AppImage + tar.gz)
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          chmod +x build/publish.sh
+          for rid in linux-x64 linux-arm64; do build/publish.sh "$rid"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            artifacts/*.AppImage
+            artifacts/*.tar.gz
+            artifacts/*.sha256
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    if: github.ref_type == 'tag'
+    needs: [version, windows, macos, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          prerelease=""
+          [[ "$VERSION" == *-* ]] && prerelease="--prerelease"
+          cat > notes.md <<'NOTES'
+          ## Downloads
+
+          | Platform | File |
+          |---|---|
+          | Windows 10/11 (x64 / ARM) | `…-win-x64.zip` / `…-win-arm64.zip`: extract and run `EdenGameLibraryManager.exe` |
+          | macOS (Apple silicon / Intel) | `…-osx-arm64.dmg` / `…-osx-x64.dmg`: open and drag the app to Applications |
+          | Linux (x64 / ARM) | `…-linux-x64.AppImage` / `…-linux-arm64.AppImage`: mark executable and run; `.tar.gz` includes an installer |
+
+          Each file has a matching `.sha256` checksum.
+
+          **macOS first launch:** the app is not notarized. If macOS blocks it, open **System Settings → Privacy & Security** and click **Open Anyway**.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Eden Game Library Manager $VERSION" \
+            --notes-file notes.md \
+            --generate-notes \
+            $prerelease

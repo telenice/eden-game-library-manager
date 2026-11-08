@@ -1,0 +1,21 @@
+# Oracle VPS: SWAG (nginx + Let's Encrypt + fail2ban) in front of the WireGuard link to your home AeroFoil.
+# Host networking lets nginx reach 10.13.13.2 (your home server) through the host's wg0 interface.
+services:
+  swag:
+    image: lscr.io/linuxserver/swag:latest
+    container_name: swag
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - URL=yourdomain.com            # your domain
+      - SUBDOMAINS=aerofoil           # -> aerofoil.yourdomain.com
+      - ONLY_SUBDOMAINS=true
+      - VALIDATION=http               # needs TCP 80 open; or use dns + DNSPLUGIN=cloudflare (see README)
+      - EMAIL=you@example.com         # Let's Encrypt expiry notices
+    volumes:
+      - ./swag:/config
+    restart: unless-stopped
