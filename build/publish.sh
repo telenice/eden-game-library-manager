@@ -68,7 +68,7 @@ case "$RID" in
         STAGE="$OUT/$NAME"
         mkdir -p "$STAGE"
         cp "$PUBLISH/EdenGameLibraryManager.exe" "$STAGE/"
-        cp "$ROOT/README.md" "$STAGE/README.md"
+        cp "$ROOT/docs/package/README.txt" "$STAGE/README.txt"
         make_zip "$ROOT/artifacts/$NAME.zip" "$OUT" "$NAME"
         write_checksum "$ROOT/artifacts/$NAME.zip"
         ;;
@@ -127,6 +127,7 @@ PLIST
             DMG_STAGE="$OUT/dmg"
             mkdir -p "$DMG_STAGE"
             cp -R "$BUNDLE" "$DMG_STAGE/"
+            cp "$ROOT/docs/package/README.txt" "$DMG_STAGE/README.txt"
             ln -s /Applications "$DMG_STAGE/Applications"
             rm -f "$ROOT/artifacts/$NAME.dmg"
             # hdiutil occasionally fails with "Resource busy" on CI machines; retry a few times.
@@ -151,7 +152,7 @@ PLIST
         cp "$PUBLISH/EdenGameLibraryManager" "$STAGE/"
         chmod +x "$STAGE/EdenGameLibraryManager"
         cp "$ROOT/src/EdenGameLibraryManager.App/Assets/app.png" "$STAGE/eden-game-library-manager.png"
-        cp "$ROOT/README.md" "$STAGE/README.md"
+        cp "$ROOT/docs/package/README.txt" "$STAGE/README.txt"
         cat > "$STAGE/eden-game-library-manager.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application

@@ -117,7 +117,8 @@ foreach ($rid in $Runtime) {
 
     New-Item -ItemType Directory -Force -Path $stage | Out-Null
     Copy-Item $exe $stage
-    Copy-Item (Join-Path $root 'README.md') $stage
+    # End-user guide; the repository README is for developers.
+    Copy-Item (Join-Path $root 'docs\package\README.txt') $stage
 
     if (Test-Path $zip) { Remove-Item -Force $zip }
     Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
