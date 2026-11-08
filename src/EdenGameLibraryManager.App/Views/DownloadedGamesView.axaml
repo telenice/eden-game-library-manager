@@ -107,7 +107,8 @@
                   </StackPanel>
                   <TextBlock Text="{Binding ParentText}" Classes="small" Foreground="{DynamicResource AccentBrush}" IsVisible="{Binding IsChild}" />
                   <TextBlock Text="{Binding Details}" Classes="muted small" />
-                  <TextBlock Text="{Binding PathText}" Classes="muted small" TextTrimming="PathSegmentEllipsis" />
+                  <!-- Not PathSegmentEllipsis: Avalonia throws while rendering it for some widths, which stops the window repainting. -->
+                  <TextBlock Text="{Binding PathText}" Classes="muted small" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding PathText}" />
                   <TextBlock Classes="muted small">
                     <Run Text="Downloaded: " /><Run Text="{Binding DownloadedText}" />
                     <Run Text="   Last accessed: " /><Run Text="{Binding LastAccessedText}" />
