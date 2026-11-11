@@ -93,6 +93,15 @@ A game doesn't appear in Eden
   refresh Eden's game list.
 
 
+UPDATES
+-------
+
+The app checks for a new version when it starts (Settings > Updates). On
+Windows, click "Update now": it downloads the new version, checks it is
+genuine, replaces only its own .exe and restarts. Your settings, library and
+downloads are kept. On macOS and Linux it links to the download page instead.
+
+
 YOUR DATA
 ---------
 

@@ -142,6 +142,30 @@ public interface ICacheManager
     Task EnsureCapacityAsync(long requiredBytes, long reservedBytes, CancellationToken cancellationToken);
 }
 
+/// <summary>Checks GitHub for newer releases of this app and, on Windows, installs them in place.</summary>
+public interface IUpdateService
+{
+    Version CurrentVersion { get; }
+
+    /// <summary>
+    /// True when this copy can replace itself: a published Windows build in a folder it can write to.
+    /// Elsewhere the user is sent to the release page instead.
+    /// </summary>
+    bool CanInstallInPlace { get; }
+
+    /// <summary>Returns the latest release when it is newer than <see cref="CurrentVersion"/>, otherwise null.</summary>
+    Task<AppUpdate?> CheckAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Downloads the package, verifies its signature and swaps in the new executable. Returns the path
+    /// to start once this process has exited. Nothing is changed if any step fails.
+    /// </summary>
+    Task<string> InstallAsync(AppUpdate update, IProgress<double>? progress, CancellationToken cancellationToken);
+
+    /// <summary>Removes the previous executable and downloaded packages left by an earlier update.</summary>
+    Task CleanUpAsync();
+}
+
 /// <summary>Reads how long each game has been played in Eden. Eden's files are only read, never changed.</summary>
 public interface IPlayTimeService
 {

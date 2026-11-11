@@ -32,6 +32,7 @@ Eden.
 | **Settings** | Server URL and credentials with a connection test, games folder, maximum storage for downloads, concurrency (1–4), speed limit, auto-resume, startup and periodic refresh, and theme. |
 | **Reliability** | HTTP Range resume checked against ETag / Last-Modified, bounded retries with exponential backoff, size verification, partial files kept outside the games folder, and a database that rebuilds itself if corrupted. |
 | **Storage** | Optional maximum storage for downloads, a cleanup picker when a download won't fit, and pinned games. Nothing is deleted without your confirmation. |
+| **Updates** | Checks GitHub for a newer release at startup (Settings → Updates). On Windows it downloads the new version, checks its signature, replaces its own `.exe` and restarts. See [Updates](#updates). |
 | **Offline** | Shows the last catalogue it saved, clearly marked. You can still browse, delete and check storage while offline; new downloads are disabled. |
 
 ---
@@ -257,6 +258,35 @@ example on an unplugged drive, the database is left untouched.
 
 ---
 
+## Updates
+
+With **Settings → Updates → Check for a new version when the app starts** on (the default), the app
+asks GitHub's public API for the latest release of `telenice/eden-game-library-manager`. Drafts and
+pre-releases are ignored. When a newer version exists, a banner offers **Update now**, **What's new**
+and **Later**; **Check now** in Settings does the same on demand.
+
+On Windows, **Update now**:
+
+1. downloads the `-win-x64.zip` (or `-win-arm64.zip`) for this machine and its `.sig` file;
+2. checks the signature against the release public key built into the app
+   (`src/EdenGameLibraryManager.Infrastructure/Updates/update-signing-public-key.pem`), and stops if
+   it doesn't match, so a replaced file on GitHub can't be installed;
+3. takes only `EdenGameLibraryManager.exe` from the zip, renames the running exe to
+   `EdenGameLibraryManager.exe.old` and moves the new one into place. Nothing else in the folder is
+   touched, so keeping the app next to Eden's own files is safe;
+4. closes the app the normal way (active downloads pause), starts the new version, which deletes the
+   `.old` file and resumes downloads.
+
+Settings, passwords, the library database and caches live in the app data folder, so updates keep
+them. If any step fails, the current version keeps running unchanged. Files the app downloads itself
+don't get Windows' "Mark of the Web", so an updated app starts without a SmartScreen prompt.
+
+The app sends you to the release page instead when it can't update itself: on macOS and Linux, when
+its folder isn't writable (e.g. Program Files), when a release has no signature, and in development
+builds.
+
+---
+
 ## Security
 
 - HTTPS with normal certificate validation. Validation is never disabled; a bad certificate gives
@@ -342,7 +372,14 @@ and resuming it partway, then deletes it.
 #### GitHub Actions (all platforms)
 
 `.github/workflows/release.yml` builds every package on native runners: Windows ZIPs, signed macOS
-`.dmg`s and Linux AppImages / tarballs, each with a `.sha256` checksum.
+`.dmg`s and Linux AppImages / tarballs, each with a `.sha256` checksum. Windows ZIPs also get a
+`.sig` for the in-app updater.
+
+**One-time setup:** add the release signing private key (an ECDSA P-256 key in PEM format) as a
+repository secret named `UPDATE_SIGNING_KEY` (**Settings → Secrets and variables → Actions → New
+repository secret**). The release job signs each Windows zip with it, checks the signature against
+the public key in the repository, and fails if the secret is missing or doesn't match. Keep a copy of
+the private key somewhere safe: without it, future releases can't be signed for the updater.
 
 - **Push a version tag** to run the tests, build everything, and publish a GitHub Release with the
   files attached:
@@ -421,7 +458,7 @@ whenever a runtime identifier is given.
   `signtool sign /fd SHA256 /a artifacts\win-x64\publish\EdenGameLibraryManager.exe`.
 - The version comes from `<Version>` in `Directory.Build.props`.
 
-Automatic updates aren't included.
+Windows builds update themselves from GitHub Releases; see [Updates](#updates).
 
 ---
 

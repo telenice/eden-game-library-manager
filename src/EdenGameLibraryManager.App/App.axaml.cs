@@ -18,6 +18,7 @@ using EdenGameLibraryManager.Infrastructure.Security;
 using EdenGameLibraryManager.Infrastructure.Storage;
 using EdenGameLibraryManager.Infrastructure.TitleDb;
 using EdenGameLibraryManager.Infrastructure.TorBox;
+using EdenGameLibraryManager.Infrastructure.Updates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -27,6 +28,7 @@ public partial class App : Application
 {
     private ServiceProvider? _services;
     private bool _shutdownComplete;
+    private string? _restartExecutable;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -48,6 +50,12 @@ public partial class App : Application
             var window = new MainWindow { DataContext = viewModel };
             _services.GetRequiredService<DialogService>().Owner = window;
             window.Opened += async (_, _) => await viewModel.StartAsync();
+            // An installed update closes the app the normal way (pausing downloads), then starts the new exe.
+            viewModel.Updates.RestartRequested += (_, exe) =>
+            {
+                _restartExecutable = exe;
+                window.Close();
+            };
             window.Closing += async (_, e) =>
             {
                 if (_shutdownComplete) return;
@@ -56,12 +64,29 @@ public partial class App : Application
                 await viewModel.ShutdownAsync();
                 _shutdownComplete = true;
                 _services.Dispose();
+                if (_restartExecutable is { } exe) StartUpdatedApp(exe, logger);
                 window.Close();
             };
             desktop.MainWindow = window;
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void StartUpdatedApp(string exe, ILogger logger)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
+            {
+                UseShellExecute = false,
+                WorkingDirectory = Path.GetDirectoryName(exe)!,
+            })?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Could not start the updated app");
+        }
     }
 
     public static void ApplyTheme(AppTheme theme)
@@ -105,6 +130,9 @@ public partial class App : Application
         services.AddSingleton<ILocalLibraryService, LocalLibraryService>();
         services.AddSingleton<ICacheManager, CacheManager>();
         services.AddSingleton<IPlayTimeService, EdenPlayTimeReader>();
+        services.AddSingleton<IUpdateService>(sp => new UpdateService(
+            UpdateService.CreateHttpClient($"EdenGameLibraryManager/{typeof(App).Assembly.GetName().Version?.ToString(3) ?? "1.0.0"}"),
+            paths, sp.GetRequiredService<ILogger<UpdateService>>()));
         services.AddSingleton<BandwidthLimiter>();
         services.AddSingleton<HttpDownloader>();
         services.AddSingleton<IDownloadManager, DownloadManager>();
@@ -117,6 +145,7 @@ public partial class App : Application
         services.AddSingleton<DownloadedGamesViewModel>();
         services.AddSingleton<DownloadsViewModel>();
         services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<UpdatesViewModel>();
         services.AddTransient<SetupViewModel>();
 
         return services.BuildServiceProvider();

@@ -74,6 +74,9 @@ public sealed record AppSettings
     /// <summary>titledb region file to use, e.g. "US.en" or "GB.en".</summary>
     public string TitleDbRegion { get; init; } = "US.en";
 
+    /// <summary>Check GitHub for a newer version of this app when it starts.</summary>
+    public bool CheckForUpdates { get; init; } = true;
+
     public AppTheme Theme { get; init; } = AppTheme.Dark;
     public ViewMode ViewMode { get; init; } = ViewMode.Grid;
     public bool GroupByGame { get; init; }

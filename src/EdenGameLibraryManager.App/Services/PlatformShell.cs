@@ -3,11 +3,26 @@ using System.Diagnostics;
 namespace EdenGameLibraryManager.App.Services;
 
 /// <summary>
-/// Reveals files in the OS file manager. Game files themselves are never opened or executed:
-/// only the containing folder is shown (with the file selected where the platform supports it).
+/// Reveals files in the OS file manager and opens web pages in the default browser. Game files
+/// themselves are never opened or executed: only the containing folder is shown (with the file
+/// selected where the platform supports it).
 /// </summary>
 public static class PlatformShell
 {
+    /// <summary>Opens an HTTPS page (e.g. a GitHub release) in the default browser.</summary>
+    public static void OpenWebPage(Uri url)
+    {
+        if (!url.IsAbsoluteUri || url.Scheme != Uri.UriSchemeHttps) return;
+        if (OperatingSystem.IsWindows())
+        {
+            Process.Start(new ProcessStartInfo(url.AbsoluteUri) { UseShellExecute = true })?.Dispose();
+            return;
+        }
+        var psi = new ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open") { UseShellExecute = false };
+        psi.ArgumentList.Add(url.AbsoluteUri);
+        Process.Start(psi)?.Dispose();
+    }
+
     public static void RevealInFileManager(string path)
     {
         var full = Path.GetFullPath(path);

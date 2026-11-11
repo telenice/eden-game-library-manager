@@ -37,6 +37,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         Downloaded = services.GetRequiredService<DownloadedGamesViewModel>();
         Downloads = services.GetRequiredService<DownloadsViewModel>();
         Settings = services.GetRequiredService<SettingsViewModel>();
+        Updates = services.GetRequiredService<UpdatesViewModel>();
 
         _coordinator.Changed += (_, _) => UpdateStatus();
         Downloads.PropertyChanged += (_, e) =>
@@ -67,6 +68,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public DownloadedGamesViewModel Downloaded { get; }
     public DownloadsViewModel Downloads { get; }
     public SettingsViewModel Settings { get; }
+    public UpdatesViewModel Updates { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSetupMode))]
@@ -171,6 +173,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             StartupError = $"Startup problem: {ex.Message}";
         }
         ConfigureRefreshTimer();
+        if (_settings.Current.CheckForUpdates) _ = Updates.CheckOnStartupAsync();
     }
 
     public Task ShutdownAsync() => _downloads.ShutdownAsync();

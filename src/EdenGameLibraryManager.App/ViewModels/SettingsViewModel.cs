@@ -36,8 +36,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
         LibraryCoordinator coordinator,
         IDialogService dialogs,
         AppPaths paths,
-        ILocalLibraryService library)
+        ILocalLibraryService library,
+        UpdatesViewModel updates)
     {
+        Updates = updates;
         _library = library;
         _settings = settings;
         _credentials = credentials;
@@ -82,12 +84,14 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private decimal _speedLimitKbps;
     [ObservableProperty] private ThemeOption _selectedTheme;
     [ObservableProperty] private bool _useTitleDb;
+    [ObservableProperty] private bool _checkForUpdates;
     [ObservableProperty] private string _titleDbRegion = TitleDatabase.Regions[0];
     [ObservableProperty] private string? _titleDbStatusText;
     [ObservableProperty] private bool _isUpdatingTitleDb;
     [ObservableProperty] private string? _statusMessage;
 
     public string DataFolder => _paths.Root;
+    public UpdatesViewModel Updates { get; }
     public bool HasSelectedProfile => SelectedProfile is not null;
 
     public void Load(AppSettings s)
@@ -109,6 +113,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         SpeedLimitKbps = s.SpeedLimitKbps;
         SelectedTheme = ThemeOptions.FirstOrDefault(t => t.Theme == s.Theme) ?? ThemeOptions[0];
         UseTitleDb = s.UseTitleDb;
+        CheckForUpdates = s.CheckForUpdates;
         TitleDbRegion = TitleDatabase.NormalizeRegion(s.TitleDbRegion);
         StatusMessage = null;
         RefreshTitleDbStatus();
@@ -310,6 +315,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             SpeedLimitKbps = (int)SpeedLimitKbps,
             Theme = SelectedTheme.Theme,
             UseTitleDb = UseTitleDb,
+            CheckForUpdates = CheckForUpdates,
             TitleDbRegion = TitleDbRegion,
         };
 

@@ -132,6 +132,25 @@
         </Border>
 
         <Border Classes="section">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Updates" Classes="h2" />
+            <CheckBox IsChecked="{Binding CheckForUpdates}" Content="Check for a new version when the app starts" />
+            <TextBlock Classes="muted small" TextWrapping="Wrap"
+                       Text="Checks the latest release on GitHub. On Windows the app can update itself: it downloads the new version, checks it is signed by the release key, replaces only its own .exe and restarts. Your settings, library and downloads are kept." />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Button Content="Check now" Command="{Binding Updates.CheckNowCommand}" />
+              <Button Classes="accent" Content="Update now" Command="{Binding Updates.InstallCommand}" IsVisible="{Binding Updates.CanInstall}" />
+              <Button Content="{Binding Updates.ReleaseButtonText}" Command="{Binding Updates.OpenReleasePageCommand}" IsVisible="{Binding Updates.HasUpdate}" />
+              <ProgressBar IsIndeterminate="True" Width="120" IsVisible="{Binding Updates.IsChecking}" VerticalAlignment="Center" />
+            </StackPanel>
+            <ProgressBar Value="{Binding Updates.ProgressPercent}" Maximum="100" IsVisible="{Binding Updates.IsInstalling}" />
+            <TextBlock Classes="muted small" TextWrapping="Wrap">
+              <Run Text="{Binding Updates.CurrentVersionText}" /><Run Text=" " /><Run Text="{Binding Updates.StatusText}" />
+            </TextBlock>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="section">
           <StackPanel Spacing="8">
             <TextBlock Text="Application data" Classes="h2" />
             <TextBlock Classes="muted small" TextWrapping="Wrap"

@@ -131,10 +131,29 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+      # The in-app updater only installs a Windows zip whose .sig verifies against the public key
+      # built into the app (src/EdenGameLibraryManager.Infrastructure/Updates/update-signing-public-key.pem).
+      - name: Sign Windows packages for the in-app updater
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if [[ -z "$UPDATE_SIGNING_KEY" ]]; then
+            echo "::error::The UPDATE_SIGNING_KEY secret is not set, so the in-app updater couldn't install this release."
+            exit 1
+          fi
+          key="$RUNNER_TEMP/update-signing-key.pem"
+          trap 'rm -f "$key"' EXIT
+          (umask 077 && printf '%s\n' "$UPDATE_SIGNING_KEY" > "$key")
+          public=src/EdenGameLibraryManager.Infrastructure/Updates/update-signing-public-key.pem
+          for zip in dist/*.zip; do
+            openssl dgst -sha256 -sign "$key" -out "$zip.sig" "$zip"
+            openssl dgst -sha256 -verify "$public" -signature "$zip.sig" "$zip"
+          done
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -151,7 +170,7 @@ jobs:
           | macOS (Apple silicon / Intel) | `…-osx-arm64.dmg` / `…-osx-x64.dmg`: open and drag the app to Applications |
           | Linux (x64 / ARM) | `…-linux-x64.AppImage` / `…-linux-arm64.AppImage`: mark executable and run; `.tar.gz` includes an installer |
 
-          Each file has a matching `.sha256` checksum.
+          Each file has a matching `.sha256` checksum. Windows zips also have a `.sig` signature, which the app checks before updating itself.
 
           **macOS first launch:** the app is not notarized. If macOS blocks it, open **System Settings → Privacy & Security** and click **Open Anyway**.
           NOTES

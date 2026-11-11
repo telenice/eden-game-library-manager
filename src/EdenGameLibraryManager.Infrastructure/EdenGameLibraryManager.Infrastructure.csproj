@@ -14,4 +14,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="EdenGameLibraryManager.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Public half of the release signing key; the release workflow verifies its signatures against this same file. -->
+    <EmbeddedResource Include="Updates\update-signing-public-key.pem" LogicalName="EdenGameLibraryManager.Infrastructure.Updates.update-signing-public-key.pem" />
+  </ItemGroup>
 </Project>
