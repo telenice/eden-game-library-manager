@@ -212,58 +212,25 @@ public class CacheManagerTests
     private const long MB = 1024 * 1024;
 
     [Fact]
-    public async Task Manual_mode_throws_with_plan_when_limit_exceeded()
+    public async Task Download_that_does_not_fit_throws_with_a_plan_and_deletes_nothing()
     {
         using var temp = new TempDirectory();
-        var (library, settings) = await CreateLibraryAsync(temp, autoCleanup: false, limitGb: 10.0 / 1024);
+        var (library, settings) = await CreateLibraryAsync(temp, limitGb: 10.0 / 1024);
         await AddGameAsync(library, settings.Current.GamesDirectory, "old.nsp", 8 * MB, DateTimeOffset.UtcNow.AddDays(-3));
 
-        var cache = new CacheManager(library, settings, NullLogger<CacheManager>.Instance);
+        var cache = new CacheManager(library, settings);
         var ex = await Assert.ThrowsAsync<CacheLimitExceededException>(() => cache.EnsureCapacityAsync(4 * MB, 0, default));
         Assert.Equal(2 * MB, ex.Plan.BytesToFree);
         Assert.Single(library.Games);
     }
 
-    [Fact]
-    public async Task Automatic_mode_evicts_least_recently_used_unpinned_games()
-    {
-        using var temp = new TempDirectory();
-        var (library, settings) = await CreateLibraryAsync(temp, autoCleanup: true, limitGb: 10.0 / 1024);
-        var dir = settings.Current.GamesDirectory;
-        var pinned = await AddGameAsync(library, dir, "pinned.nsp", 3 * MB, DateTimeOffset.UtcNow.AddDays(-30));
-        await library.SetPinnedAsync(pinned, true, default);
-        await AddGameAsync(library, dir, "oldest.nsp", 3 * MB, DateTimeOffset.UtcNow.AddDays(-10));
-        await AddGameAsync(library, dir, "newest.nsp", 3 * MB, DateTimeOffset.UtcNow);
-
-        var cache = new CacheManager(library, settings, NullLogger<CacheManager>.Instance);
-        await cache.EnsureCapacityAsync(3 * MB, 0, default);
-
-        Assert.False(File.Exists(Path.Combine(dir, "oldest.nsp")));
-        Assert.True(File.Exists(Path.Combine(dir, "pinned.nsp")));
-        Assert.True(File.Exists(Path.Combine(dir, "newest.nsp")));
-    }
-
-    [Fact]
-    public async Task Automatic_mode_never_deletes_manually_added_files()
-    {
-        using var temp = new TempDirectory();
-        var (library, settings) = await CreateLibraryAsync(temp, autoCleanup: true, limitGb: 4.0 / 1024);
-        var dir = settings.Current.GamesDirectory;
-        await File.WriteAllBytesAsync(Path.Combine(dir, "manual.nsp"), new byte[3 * MB]);
-        await library.ScanAsync(default);
-
-        var cache = new CacheManager(library, settings, NullLogger<CacheManager>.Instance);
-        await Assert.ThrowsAsync<CacheLimitExceededException>(() => cache.EnsureCapacityAsync(5 * MB, 0, default));
-        Assert.True(File.Exists(Path.Combine(dir, "manual.nsp")));
-    }
-
-    private static async Task<(LocalLibraryService, InMemorySettings)> CreateLibraryAsync(TempDirectory temp, bool autoCleanup, double limitGb)
+    private static async Task<(LocalLibraryService, InMemorySettings)> CreateLibraryAsync(TempDirectory temp, double limitGb)
     {
         var games = temp.Combine("games");
         Directory.CreateDirectory(games);
         var manifest = new ManifestService(temp.Combine("library.db"), NullLogger<ManifestService>.Instance);
         await manifest.InitializeAsync(default);
-        var settings = new InMemorySettings(new AppSettings { GamesDirectory = games, AutoCleanup = autoCleanup, CacheLimitGb = limitGb });
+        var settings = new InMemorySettings(new AppSettings { GamesDirectory = games, CacheLimitGb = limitGb });
         return (new LocalLibraryService(manifest, settings, NullLogger<LocalLibraryService>.Instance), settings);
     }
 
@@ -272,5 +239,46 @@ public class CacheManagerTests
         var path = Path.Combine(dir, name);
         await File.WriteAllBytesAsync(path, new byte[size]);
         return await library.RegisterDownloadAsync(TestData.Local(path, size, lastUsed: when), default);
+    }
+}
+
+public class EdenPlayTimeTests
+{
+    private static byte[] Record(ulong programId, ulong seconds)
+    {
+        var bytes = new byte[16];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(bytes, programId);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(8), seconds);
+        return bytes;
+    }
+
+    [Fact]
+    public void Parses_title_ids_and_seconds_and_ignores_a_partial_record()
+    {
+        byte[] data = [.. Record(0x0100152000022000, 1196), .. Record(0x01001B700BA7C000, 4352), .. Record(0, 5), 1, 2, 3];
+
+        var times = EdenPlayTimeReader.Parse(data);
+
+        Assert.Equal(2, times.Count);
+        Assert.Equal(TimeSpan.FromSeconds(1196), times["0100152000022000"]);
+        Assert.Equal(TimeSpan.FromSeconds(4352), times["01001b700ba7c000"]);
+    }
+
+    [Fact]
+    public async Task Missing_file_means_play_time_is_unknown_and_changes_are_picked_up()
+    {
+        using var temp = new TempDirectory();
+        var file = temp.Combine("play_time", "playtime.bin");
+        var reader = new EdenPlayTimeReader(NullLogger<EdenPlayTimeReader>.Instance) { FilePathOverride = file };
+
+        Assert.Null(await reader.GetPlayTimesAsync(default));
+
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        await File.WriteAllBytesAsync(file, Record(0x0100152000022000, 60));
+        Assert.Equal(TimeSpan.FromMinutes(1), (await reader.GetPlayTimesAsync(default))!["0100152000022000"]);
+
+        await File.WriteAllBytesAsync(file, Record(0x0100152000022000, 120));
+        File.SetLastWriteTimeUtc(file, DateTime.UtcNow.AddMinutes(1));
+        Assert.Equal(TimeSpan.FromMinutes(2), (await reader.GetPlayTimesAsync(default))!["0100152000022000"]);
     }
 }

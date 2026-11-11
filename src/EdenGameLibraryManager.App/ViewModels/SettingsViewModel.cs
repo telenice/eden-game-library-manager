@@ -72,7 +72,6 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty] private string _gamesDirectory = string.Empty;
     [ObservableProperty] private decimal _cacheLimitGb;
-    [ObservableProperty] private bool _autoCleanup;
     [ObservableProperty] private bool _organizeByGame;
     [ObservableProperty] private bool _includeUpdatesAndDlc;
     [ObservableProperty] private bool _isOrganizing;
@@ -101,7 +100,6 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
         GamesDirectory = s.GamesDirectory;
         CacheLimitGb = (decimal)s.CacheLimitGb;
-        AutoCleanup = s.AutoCleanup;
         OrganizeByGame = s.OrganizeByGame;
         IncludeUpdatesAndDlc = s.IncludeUpdatesAndDlc;
         MaxConcurrentDownloads = s.MaxConcurrentDownloads;
@@ -303,7 +301,6 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ActiveProfileId = activeId,
             GamesDirectory = GamesDirectory.Trim(),
             CacheLimitGb = (double)CacheLimitGb,
-            AutoCleanup = AutoCleanup,
             OrganizeByGame = OrganizeByGame,
             IncludeUpdatesAndDlc = IncludeUpdatesAndDlc,
             MaxConcurrentDownloads = MaxConcurrentDownloads,

@@ -222,7 +222,7 @@ public sealed partial class AvailableGamesViewModel : ViewModelBase
             await EnqueueAsync(items);
     }
 
-    /// <summary>Checks connectivity, the games directory and the cache limit (offering cleanup) before queueing.</summary>
+    /// <summary>Checks connectivity, the games directory and the storage limit (offering cleanup) before queueing.</summary>
     private async Task<bool> PrepareAsync(string name, long totalBytes)
     {
         if (!_coordinator.CanDownload)
@@ -239,15 +239,6 @@ public sealed partial class AvailableGamesViewModel : ViewModelBase
 
         var plan = _cache.Plan(totalBytes, _downloads.GetReservedBytes());
         if (plan.Fits) return true;
-
-        if (_settings.Current.AutoCleanup)
-        {
-            if (plan.CanSatisfyByEviction) return true; // least recently used games are removed when the transfer starts
-            await _dialogs.ShowMessageAsync("Not enough cache space",
-                $"Even after removing every unpinned downloaded game, {SizeFormatter.Format(plan.Shortfall)} more space is needed. " +
-                "Increase the cache limit or unpin some games.");
-            return false;
-        }
         return await RunManualCleanupAsync(name, totalBytes, plan);
     }
 
@@ -281,8 +272,8 @@ public sealed partial class AvailableGamesViewModel : ViewModelBase
 
         if (candidates.Count == 0)
         {
-            await _dialogs.ShowMessageAsync("Cache limit reached",
-                $"This download needs {SizeFormatter.Format(plan.BytesToFree)} more than your cache limit allows. Increase the limit in Settings.");
+            await _dialogs.ShowMessageAsync("Storage limit reached",
+                $"This download needs {SizeFormatter.Format(plan.BytesToFree)} more than your storage limit allows. Raise Maximum storage for downloads in Settings.");
             return false;
         }
 

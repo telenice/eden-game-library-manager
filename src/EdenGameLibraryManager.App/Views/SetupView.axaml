@@ -37,14 +37,13 @@
 
         <!-- Step 3 -->
         <StackPanel Spacing="12" IsVisible="{Binding IsStep3}">
-          <TextBlock TextWrapping="Wrap" Text="Limit how much space games downloaded by this app may use. Set 0 for no limit." />
+          <TextBlock TextWrapping="Wrap" Text="Maximum storage for downloads: how much space games downloaded by this app may use. Set 0 for no limit." />
           <StackPanel Orientation="Horizontal" Spacing="12">
             <NumericUpDown Value="{Binding CacheLimitGb}" Minimum="0" Maximum="100000" Increment="10" FormatString="0.#" Width="160" />
             <TextBlock Text="GB" VerticalAlignment="Center" />
           </StackPanel>
-          <CheckBox IsChecked="{Binding AutoCleanup}" Content="Automatically remove least recently used downloads when space is needed" />
           <TextBlock Classes="muted small" TextWrapping="Wrap"
-                     Text="Off by default: you'll be asked which games to remove instead. Pinned and manually added games are never removed automatically." />
+                     Text="When a download won't fit, you'll be asked which games to remove. Nothing is deleted automatically." />
         </StackPanel>
 
         <!-- Step 4 -->
@@ -57,7 +56,7 @@
             <Run Text="Games directory: " /><Run Text="{Binding GamesDirectory}" FontWeight="SemiBold" />
           </TextBlock>
           <TextBlock TextWrapping="Wrap">
-            <Run Text="Cache limit: " /><Run Text="{Binding CacheSummary}" FontWeight="SemiBold" />
+            <Run Text="Maximum storage for downloads: " /><Run Text="{Binding CacheSummary}" FontWeight="SemiBold" />
           </TextBlock>
           <TextBlock Classes="muted small" TextWrapping="Wrap"
                      Text="You can change any of this later in Settings. You are responsible for having the rights to the content you download." />

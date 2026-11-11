@@ -34,7 +34,6 @@ public sealed partial class SetupViewModel : ViewModelBase
 
     [ObservableProperty] private string _gamesDirectory;
     [ObservableProperty] private decimal _cacheLimitGb;
-    [ObservableProperty] private bool _autoCleanup;
     [ObservableProperty] private string? _error;
     [ObservableProperty] private bool _isBusy;
 
@@ -140,7 +139,6 @@ public sealed partial class SetupViewModel : ViewModelBase
             ActiveProfileId = profile.Id,
             GamesDirectory = GamesDirectory.Trim(),
             CacheLimitGb = (double)CacheLimitGb,
-            AutoCleanup = AutoCleanup,
             SetupCompleted = true,
         });
         Completed?.Invoke(this, EventArgs.Empty);

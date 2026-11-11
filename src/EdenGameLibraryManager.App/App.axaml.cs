@@ -104,6 +104,7 @@ public partial class App : Application
         services.AddSingleton<IManifestService>(sp => new ManifestService(paths.DatabaseFile, sp.GetRequiredService<ILogger<ManifestService>>()));
         services.AddSingleton<ILocalLibraryService, LocalLibraryService>();
         services.AddSingleton<ICacheManager, CacheManager>();
+        services.AddSingleton<IPlayTimeService, EdenPlayTimeReader>();
         services.AddSingleton<BandwidthLimiter>();
         services.AddSingleton<HttpDownloader>();
         services.AddSingleton<IDownloadManager, DownloadManager>();

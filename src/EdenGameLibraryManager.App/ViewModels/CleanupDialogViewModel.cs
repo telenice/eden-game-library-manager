@@ -27,7 +27,7 @@ public sealed partial class CleanupCandidateViewModel : ViewModelBase
 
 /// <summary>
 /// Manual cache cleanup: lets the user choose downloaded games to remove when a new download would
-/// exceed the cache limit. Least-recently-used, unpinned games are preselected.
+/// exceed the storage limit. Least-recently-used, unpinned games are preselected.
 /// </summary>
 public sealed partial class CleanupDialogViewModel : ViewModelBase
 {
@@ -60,7 +60,7 @@ public sealed partial class CleanupDialogViewModel : ViewModelBase
     private bool _isBusy;
 
     public string Intro =>
-        $"Downloading \"{GameName}\" needs {SizeFormatter.Format(Plan.RequiredBytes)}, which exceeds your cache limit by " +
+        $"Downloading \"{GameName}\" needs {SizeFormatter.Format(Plan.RequiredBytes)}, which exceeds your storage limit by " +
         $"{SizeFormatter.Format(Plan.BytesToFree)}. Select downloaded games to remove, or cancel and raise the limit in Settings.";
 
     public long SelectedBytes => Candidates.Where(c => c.IsSelected).Sum(c => c.Game.ActualSize);

@@ -220,30 +220,6 @@ public sealed class LocalLibraryService : ILocalLibraryService, IDisposable
         Replace(game with { LastAccessedAt = now });
     }
 
-    public bool IsFileInUse(LocalGame game)
-    {
-        try
-        {
-            using var stream = new FileStream(game.LocalPath, FileMode.Open, FileAccess.Read, FileShare.None);
-            return false;
-        }
-        catch (FileNotFoundException)
-        {
-            return false;
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return false;
-        }
-        catch (IOException)
-        {
-            return true;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return true;
-        }
-    }
 
     public void StartWatching()
     {

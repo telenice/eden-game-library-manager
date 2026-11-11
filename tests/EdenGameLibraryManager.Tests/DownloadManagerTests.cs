@@ -27,7 +27,7 @@ public partial class DownloadManagerTests
         await manifest.InitializeAsync(default);
         if (seed is not null) await seed(manifest, paths);
         var library = new LocalLibraryService(manifest, s, NullLogger<LocalLibraryService>.Instance);
-        var cache = new CacheManager(library, s, NullLogger<CacheManager>.Instance);
+        var cache = new CacheManager(library, s);
         var handler = new FakeHandler(server);
         var downloader = new HttpDownloader(TestData.Client(handler), new BandwidthLimiter(), NullLogger<HttpDownloader>.Instance);
         var connections = new StaticConnectionProvider(TestData.Connection);
@@ -185,7 +185,7 @@ public partial class DownloadManagerTests
     }
 
     [Fact]
-    public async Task Cache_limit_in_manual_mode_fails_the_download()
+    public async Task Download_over_the_storage_limit_fails_without_contacting_the_server()
     {
         using var temp = new TempDirectory();
         var settings = new AppSettings { GamesDirectory = temp.Combine("games"), CacheLimitGb = 1.0 / 1024 / 1024 }; // 1 KB
@@ -194,7 +194,7 @@ public partial class DownloadManagerTests
 
         await WaitForAsync(h.Manager, task.Id, s => s.IsTerminal());
         Assert.Equal(DownloadStatus.Failed, task.Status);
-        Assert.Contains("cache", task.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("storage limit", task.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(h.Handler.Requests);
     }
 
@@ -251,7 +251,7 @@ public partial class DownloadManagerTests
         // A fresh manager (simulating an app restart) restores the paused transfer.
         var downloader = new HttpDownloader(TestData.Client(new FakeHandler(_ => FileResponse(Payload))), new BandwidthLimiter(), NullLogger<HttpDownloader>.Instance);
         var library = new LocalLibraryService(h.Manifest, h.Settings, NullLogger<LocalLibraryService>.Instance);
-        var restarted = new DownloadManager(downloader, TestData.Links(h.Handler), h.Connections, h.Manifest, new CacheManager(library, h.Settings, NullLogger<CacheManager>.Instance),
+        var restarted = new DownloadManager(downloader, TestData.Links(h.Handler), h.Connections, h.Manifest, new CacheManager(library, h.Settings),
             library, h.Settings, h.Paths, new BandwidthLimiter(), NullLogger<DownloadManager>.Instance);
         await restarted.InitializeAsync(default);
 

@@ -24,14 +24,14 @@ Eden.
 | **Updates & DLC with the game** | Downloading a base game also queues its latest update and every DLC on the server (Settings → Downloads; on by default). The per-item buttons in the details panel download a single file. |
 | **Folder per game** | Files are saved as `<games folder>\<Game name> [TitleID]\…`, with the base game, update and DLC together (Settings → Local games directory; on by default). **Organise existing downloads** moves files this app downloaded earlier into that layout. Files you added yourself are never moved. |
 | **Group by game** | One card per title with its updates and DLC. An **Update available** / **New DLC** badge appears when you have the base game but newer content is on the server, and **Download N** fetches everything that's missing. |
-| **Server profiles** | Save several AeroFoil servers and TorBox accounts and switch between them from the sidebar. Each profile has its own credentials, offline catalogue cache and download queue. The games folder and cache limit are shared. |
+| **Server profiles** | Save several AeroFoil servers and TorBox accounts and switch between them from the sidebar. Each profile has its own credentials, offline catalogue cache and download queue. The games folder and storage limit are shared. |
 | **TorBox** | Lists the `.nsp`/`.nsz`/`.xci`/`.xcz` files in your finished TorBox downloads and fetches them straight from TorBox, so your home upload speed doesn't matter. See [TorBox profiles](#torbox-profiles). |
 | **Game info from titledb** | Names, descriptions, icons and screenshots by title ID from [titledb](https://github.com/blawar/titledb), without a server. Required for TorBox; fills gaps for AeroFoil. See [Game info and artwork](#game-info-and-artwork-titledb). |
-| **Downloaded Games** | Every game file in your games folder, nested folders included, with updates and DLC listed under their base game. Shows size, path, download date, pinned status, **Open Folder** and **Delete** (after confirmation). Supports multi-select delete and storage figures. |
+| **Downloaded Games** | Every game file in your games folder, nested folders included, with updates and DLC listed under their base game. Shows size, path, download date, total playtime from Eden, pinned status, **Open Folder** and **Delete** (after confirmation). Supports multi-select delete and storage figures. |
 | **Downloads** | A persistent queue with progress, speed, ETA and status (Queued, Downloading, Paused, Verifying, Completed, Cancelled, Failed). Pause, resume, cancel and retry each transfer. |
-| **Settings** | Server URL and credentials with a connection test, games folder, cache limit, automatic cleanup, concurrency (1–4), speed limit, auto-resume, startup and periodic refresh, and theme. |
+| **Settings** | Server URL and credentials with a connection test, games folder, maximum storage for downloads, concurrency (1–4), speed limit, auto-resume, startup and periodic refresh, and theme. |
 | **Reliability** | HTTP Range resume checked against ETag / Last-Modified, bounded retries with exponential backoff, size verification, partial files kept outside the games folder, and a database that rebuilds itself if corrupted. |
-| **Storage** | Optional cache limit, a manual cleanup picker, automatic least-recently-used (LRU) eviction and pinned games. Manually added files are never removed automatically. |
+| **Storage** | Optional maximum storage for downloads, a cleanup picker when a download won't fit, and pinned games. Nothing is deleted without your confirmation. |
 | **Offline** | Shows the last catalogue it saved, clearly marked. You can still browse, delete and check storage while offline; new downloads are disabled. |
 
 ---
@@ -79,8 +79,7 @@ A four-step wizard opens on first launch:
    subfolder, so in Eden's game list right-click that directory and enable **Scan Subfolders**.
    Depending on your Eden build, updates and DLC may also need **File → Install Files to NAND**.
    The app downloads them but never installs anything into Eden.
-3. **Configure storage.** Set a maximum cache size (0 means unlimited) and choose whether automatic
-   cleanup is on. It's off by default.
+3. **Configure storage.** Set the maximum storage for downloads (0 means unlimited).
 4. **Finish.** The app opens on **Available Games**.
 
 You can change all of this later in **Settings**.
@@ -236,20 +235,22 @@ example on an unplugged drive, the database is left untouched.
 
 ---
 
-## Storage and cache
+## Storage
 
-- The **cache limit** applies to games this app downloaded, plus space reserved for queued,
-  paused and active transfers. Manually added files are shown separately and don't count.
+- **Maximum storage for downloads** applies to games this app downloaded, plus space reserved for
+  queued, paused and active transfers. Manually added files are shown separately and don't count.
 - Before each download, the app checks free disk space in the partial-download folder and, if
   different, in the games folder.
-- **Manual mode (default).** If a download would exceed the limit, a picker opens with the
-  least-recently-used unpinned games preselected. It shows how much space will be recovered and
-  deletes only what you confirm.
-- **Automatic mode.** The least-recently-used games are removed until the new download fits.
-  Pinned games, active transfers, files that are open (e.g. by Eden) and manually added files are
-  skipped.
+- If a download would go over the limit, a picker opens with the least recently used unpinned games
+  preselected. It shows how much space will be recovered and deletes only what you confirm. Nothing
+  is ever deleted automatically.
 - *Last used* is the later of the download date and the last time you opened the file's folder
-  from the app. Eden's own usage isn't visible to the app, so pin games you want to keep.
+  from the app.
+- **Total playtime** on Downloaded Games comes from Eden's own play-time file
+  (`%APPDATA%\eden\play_time\playtime.bin` on Windows, `~/Library/Application Support/eden/…` on
+  macOS, `~/.local/share/eden/…` on Linux), re-read whenever you open the page. It's shown once per
+  game, on the base game's row. The file is only read, never changed. If Eden keeps its data
+  somewhere else (a portable install), no playtime is shown.
 - Deleting only ever removes a game file (`.nsp`, `.nsz`, `.xci`, `.xcz`) inside the games folder.
   Each deletion checks the path and refuses to follow symlinks or junctions. Eden saves, config,
   firmware and keys are never touched.
@@ -322,8 +323,8 @@ The unit tests use mocked HTTP handlers and temporary directories. They don't ne
 They cover catalogue parsing, the endpoint fallback, AeroFoil error payloads, client-restriction
 and encryption detection, de-duplication, missing metadata, local/remote matching (versions,
 updates, DLC, manual files), Range resume, changed remote files, bad `Content-Range`, incomplete
-transfers, retries, cancel/pause/restore, cache limits, LRU, pinned protection, unsafe URLs and
-paths, offline startup, database recovery, the TorBox catalogue and download links (including
+transfers, retries, cancel/pause/restore, storage limits, pinned protection, unsafe URLs and
+paths, offline startup, database recovery, reading Eden's play-time file, the TorBox catalogue and download links (including
 refusing redirects to another host), streaming titledb parsing and ETag revalidation, and titledb
 enrichment.
 
@@ -429,7 +430,7 @@ Automatic updates aren't included.
 ```text
 EdenGameLibraryManager.sln
 src/
-  EdenGameLibraryManager.Core/            Models, interfaces, pure logic (matching, LRU planning, URL/path safety)
+  EdenGameLibraryManager.Core/            Models, interfaces, pure logic (matching, storage planning, URL/path safety)
   EdenGameLibraryManager.Infrastructure/
     AeroFoil/      AeroFoilClient, CatalogParser, SettingsConnectionProvider
     TorBox/        TorBoxClient (mylist catalogue, requestdl links)
@@ -467,10 +468,8 @@ profiles and cross-platform packaging.
 
 - Verification compares exact byte counts against the server's `Content-Length` / `Content-Range`
   and the catalogue size. AeroFoil doesn't publish file hashes, so no hash check is possible.
-- "Last accessed" covers only what the app can observe (download time and *Open Folder*), not
-  Eden's play activity.
-- Detecting files in use (to skip them during automatic cleanup) is reliable on Windows. On
-  macOS/Linux, other programs don't take exclusive locks, so it's best effort.
+- Eden's play-time file records total time only, not when a game was last played, so the
+  cleanup picker's *Last used* still reflects download date and *Open Folder*.
 - `.nsz`/`.xcz` files are stored as-is and never converted. Whether Eden opens them depends on
   your Eden build.
 - macOS and Linux builds compile and package from this repository. The UI and download flow were

@@ -37,8 +37,8 @@ public sealed class AeroFoilException(AeroFoilErrorKind kind, string message, Ex
 public sealed class IncompleteDownloadException(string message) : IOException(message);
 
 public sealed class CacheLimitExceededException(CachePlan plan)
-    : Exception($"Not enough room in the game cache: {SizeFormatter.Format(plan.Shortfall)} more space is needed. " +
-                "Remove downloaded games or increase the cache limit in Settings.")
+    : Exception($"Not enough room under your storage limit: {SizeFormatter.Format(plan.Shortfall)} more space is needed. " +
+                "Remove downloaded games or raise Maximum storage for downloads in Settings.")
 {
     public CachePlan Plan { get; } = plan;
 }

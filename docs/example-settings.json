@@ -31,7 +31,6 @@
   "activeProfileId": "default",
   "gamesDirectory": "D:\\Switch Games",
   "cacheLimitGb": 100,
-  "autoCleanup": false,
   "maxConcurrentDownloads": 1,
   "autoResumeDownloads": true,
   "autoRefreshOnStartup": true,

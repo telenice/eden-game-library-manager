@@ -45,7 +45,26 @@ public sealed partial class LocalGameViewModel : ViewModelBase
     public string VersionText => Game.Version is { } v ? $"v{v}" : "version unknown";
     public string OriginText => Game.IsManaged ? "Downloaded by this app" : "Added manually";
     public string DownloadedText => Game.DownloadedAt is { } d ? d.LocalDateTime.ToString("g") : "-";
-    public string LastAccessedText => Game.LastAccessedAt is { } d ? d.LocalDateTime.ToString("g") : "Not tracked";
+    /// <summary>
+    /// Eden's total play time for the game, shown on base game rows only (updates and DLC share it).
+    /// Empty when Eden's play-time file wasn't found.
+    /// </summary>
+    public string PlayTimeText => IsChild || PlayTime is not { } t ? string.Empty : $"   Total playtime: {FormatPlayTime(t)}";
+
+    /// <summary>Null when Eden's play-time file wasn't found; zero when the game hasn't been played.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlayTimeText))]
+    private TimeSpan? _playTime;
+
+    partial void OnIsChildChanged(bool value) => OnPropertyChanged(nameof(PlayTimeText));
+
+    public static string FormatPlayTime(TimeSpan t) => t.TotalSeconds switch
+    {
+        < 1 => "Not played yet",
+        < 60 => "Less than a minute",
+        < 3600 => $"{(int)t.TotalMinutes} min",
+        _ => t.Minutes == 0 ? $"{(int)t.TotalHours} h" : $"{(int)t.TotalHours} h {t.Minutes} min",
+    };
     public bool IsPinned => Game.IsPinned;
     public bool IsUnverified => Game.Status == LocalGameStatus.Unverified;
     public string PinButtonText => IsPinned ? "Unpin" : "Pin";
@@ -82,6 +101,7 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
     private readonly ICacheManager _cache;
     private readonly IDownloadManager _downloads;
     private readonly IGameMetadataService _metadata;
+    private readonly IPlayTimeService _playTime;
     private readonly IDialogService _dialogs;
     private readonly ILogger<DownloadedGamesViewModel> _logger;
     private readonly Dictionary<string, LocalGameViewModel> _all = new(StringComparer.OrdinalIgnoreCase);
@@ -92,6 +112,7 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
         ICacheManager cache,
         IDownloadManager downloads,
         IGameMetadataService metadata,
+        IPlayTimeService playTime,
         IDialogService dialogs,
         ILogger<DownloadedGamesViewModel> logger)
     {
@@ -100,6 +121,7 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
         _cache = cache;
         _downloads = downloads;
         _metadata = metadata;
+        _playTime = playTime;
         _dialogs = dialogs;
         _logger = logger;
         coordinator.Changed += (_, _) => Sync();
@@ -209,6 +231,7 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
             await _dialogs.ShowMessageAsync("Some files were not deleted", string.Join(Environment.NewLine, errors));
     }
 
+    /// <summary>Refreshes the storage summary and Eden's play times (called when the page is shown).</summary>
     public async Task RefreshStorageAsync()
     {
         try
@@ -219,6 +242,23 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
         {
             _logger.LogDebug(ex, "Storage info unavailable");
         }
+        await RefreshPlayTimesAsync();
+    }
+
+    private async Task RefreshPlayTimesAsync()
+    {
+        IReadOnlyDictionary<string, TimeSpan>? times;
+        try
+        {
+            times = await _playTime.GetPlayTimesAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Eden play time unavailable");
+            return;
+        }
+        foreach (var vm in _all.Values)
+            vm.PlayTime = times is null ? null : times.TryGetValue(vm.GroupKey, out var t) ? t : TimeSpan.Zero;
     }
 
     private void Sync()

@@ -98,9 +98,6 @@ public interface ILocalLibraryService
 
     Task MarkAccessedAsync(LocalGame game, CancellationToken cancellationToken);
 
-    /// <summary>True when another process (e.g. the emulator) has the file open.</summary>
-    bool IsFileInUse(LocalGame game);
-
     void StartWatching();
 }
 
@@ -126,7 +123,7 @@ public interface IDownloadManager
 
     bool IsQueuedOrActive(string itemKey);
 
-    /// <summary>Total size of unfinished transfers, which is reserved against the cache limit.</summary>
+    /// <summary>Total size of unfinished transfers, which is reserved against the storage limit.</summary>
     long GetReservedBytes(string? excludeTaskId = null);
 
     Task ShutdownAsync();
@@ -139,10 +136,17 @@ public interface ICacheManager
     CachePlan Plan(long requiredBytes, long reservedBytes);
 
     /// <summary>
-    /// Makes room for <paramref name="requiredBytes"/>. In automatic mode this evicts least-recently
-    /// used managed games; otherwise it throws <see cref="CacheLimitExceededException"/>.
+    /// Throws <see cref="CacheLimitExceededException"/> when <paramref name="requiredBytes"/> doesn't fit
+    /// under the storage limit. Games are never removed automatically; the user picks them.
     /// </summary>
     Task EnsureCapacityAsync(long requiredBytes, long reservedBytes, CancellationToken cancellationToken);
+}
+
+/// <summary>Reads how long each game has been played in Eden. Eden's files are only read, never changed.</summary>
+public interface IPlayTimeService
+{
+    /// <summary>Total play time by base title id, or null when Eden's play-time file can't be found.</summary>
+    Task<IReadOnlyDictionary<string, TimeSpan>?> GetPlayTimesAsync(CancellationToken cancellationToken);
 }
 
 public interface ISettingsService

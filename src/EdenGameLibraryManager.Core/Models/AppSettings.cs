@@ -49,10 +49,9 @@ public sealed record AppSettings
     /// <summary>Shared by all profiles: the emulator scans a single folder.</summary>
     public string GamesDirectory { get; init; } = string.Empty;
 
-    /// <summary>Maximum managed cache size in GB; 0 means unlimited.</summary>
+    /// <summary>Maximum storage for games this app downloaded, in GB; 0 means unlimited.</summary>
     public double CacheLimitGb { get; init; }
 
-    public bool AutoCleanup { get; init; }
 
     /// <summary>Save downloads to "&lt;games dir&gt;/&lt;Game name&gt; [TitleID]/" instead of the root of the games directory.</summary>
     public bool OrganizeByGame { get; init; } = true;
