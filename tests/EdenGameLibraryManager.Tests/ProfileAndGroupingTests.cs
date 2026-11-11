@@ -194,3 +194,36 @@ public sealed class WindowsFactAttribute : FactAttribute
         if (!OperatingSystem.IsWindows()) Skip = "Windows-only (DPAPI).";
     }
 }
+
+public class DeletionGroupingTests
+{
+    private static LocalGame Game(string file, string? appId, ContentType type) =>
+        TestData.Local(Path.Combine("games", file), 10, appId: appId, type: type);
+
+    private static readonly LocalGame Base = Game("mk8.nsp", "0100152000022000", ContentType.Base);
+    private static readonly LocalGame Update = Game("mk8-update.nsp", "0100152000022800", ContentType.Update);
+    private static readonly LocalGame OlderUpdate = Game("mk8-update-old.nsp", "0100152000022800", ContentType.Update);
+    private static readonly LocalGame Dlc = Game("mk8-wave1.nsp", "0100152000023001", ContentType.Dlc);
+    private static readonly LocalGame OtherGame = Game("party.nsp", "01006FE013472000", ContentType.Base);
+    private static readonly LocalGame OtherUpdate = Game("party-update.nsp", "01006FE013472800", ContentType.Update);
+    private static readonly LocalGame Unknown = Game("mystery.nsp", null, ContentType.Unknown);
+    private static readonly LocalGame[] Library = [Base, Update, OlderUpdate, Dlc, OtherGame, OtherUpdate, Unknown];
+
+    [Fact]
+    public void A_base_game_brings_all_of_its_updates_and_dlc_and_nothing_else() =>
+        Assert.Equal([Update, OlderUpdate, Dlc], GameGrouping.CompanionsOf(Base, Library));
+
+    [Fact]
+    public void An_update_or_dlc_never_brings_the_base_game_or_each_other()
+    {
+        Assert.Empty(GameGrouping.CompanionsOf(Update, Library));
+        Assert.Empty(GameGrouping.CompanionsOf(Dlc, Library));
+    }
+
+    [Fact]
+    public void Files_without_a_title_id_stand_alone()
+    {
+        Assert.Empty(GameGrouping.CompanionsOf(Unknown, Library));
+        Assert.Equal([OtherUpdate], GameGrouping.CompanionsOf(OtherGame, Library));
+    }
+}

@@ -61,9 +61,12 @@
         </StackPanel>
       </Border>
 
-      <Grid ColumnDefinitions="*,Auto">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
         <TextBox Text="{Binding SearchText}" Watermark="Search downloaded games" Width="280" HorizontalAlignment="Left" />
-        <Button Grid.Column="1" Classes="danger" Content="{Binding DeleteSelectedText}" IsVisible="{Binding HasSelection}"
+        <CheckBox Grid.Column="1" IsChecked="{Binding AllSelected}" Content="Select all" Margin="16,0,0,0" VerticalAlignment="Center"
+                  IsEnabled="{Binding !IsEmpty}"
+                  ToolTip.Tip="Selects every game shown. Ticking a base game also ticks its updates and DLC; untick any you want to keep." />
+        <Button Grid.Column="3" Classes="danger" Content="{Binding DeleteSelectedText}" IsVisible="{Binding HasSelection}"
                 Command="{Binding DeleteSelectedCommand}" />
       </Grid>
     </StackPanel>
@@ -89,7 +92,8 @@
           <DataTemplate DataType="vm:LocalGameViewModel">
             <Border Classes="card row" Classes.child="{Binding IsChild}" Padding="12">
               <Grid ColumnDefinitions="Auto,64,*,Auto,Auto">
-                <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip.Tip="Select for deletion" />
+                <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center" Margin="0,0,8,0"
+                          ToolTip.Tip="Select for deletion. A base game also selects its updates and DLC." />
                 <Panel Grid.Column="1" Width="56" Height="56" Background="{DynamicResource PlaceholderBrush}">
                   <PathIcon Data="{StaticResource IconGamepad}" Width="24" Height="24" Opacity="0.35" />
                   <Image Source="{Binding Cover}" Stretch="UniformToFill" />

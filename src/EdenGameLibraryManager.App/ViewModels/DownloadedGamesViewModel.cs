@@ -102,9 +102,16 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
     private readonly IDownloadManager _downloads;
     private readonly IGameMetadataService _metadata;
     private readonly IPlayTimeService _playTime;
+    private readonly ISettingsService _settings;
     private readonly IDialogService _dialogs;
     private readonly ILogger<DownloadedGamesViewModel> _logger;
     private readonly Dictionary<string, LocalGameViewModel> _all = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Set while selection changes are applied in bulk, so they don't cascade again.</summary>
+    private bool _bulkSelecting;
+
+    /// <summary>Typed into the confirmation before the whole library can be deleted.</summary>
+    internal const string DeleteAllPhrase = "DELETE ALL";
 
     public DownloadedGamesViewModel(
         LibraryCoordinator coordinator,
@@ -113,6 +120,7 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
         IDownloadManager downloads,
         IGameMetadataService metadata,
         IPlayTimeService playTime,
+        ISettingsService settings,
         IDialogService dialogs,
         ILogger<DownloadedGamesViewModel> logger)
     {
@@ -122,6 +130,7 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
         _downloads = downloads;
         _metadata = metadata;
         _playTime = playTime;
+        _settings = settings;
         _dialogs = dialogs;
         _logger = logger;
         coordinator.Changed += (_, _) => Sync();
@@ -136,6 +145,25 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
     public long SelectedBytes => _all.Values.Where(v => v.IsSelected).Sum(v => v.Game.ActualSize);
     public bool HasSelection => _all.Values.Any(v => v.IsSelected);
     public string DeleteSelectedText => $"Delete selected ({SizeFormatter.Format(SelectedBytes)})";
+
+    /// <summary>Ticks or unticks every game currently shown (the whole library when nothing is searched for).</summary>
+    public bool AllSelected
+    {
+        get => Items.Count > 0 && Items.All(v => v.IsSelected);
+        set
+        {
+            _bulkSelecting = true;
+            try
+            {
+                foreach (var vm in Items) vm.IsSelected = value;
+            }
+            finally
+            {
+                _bulkSelecting = false;
+            }
+            NotifySelectionChanged();
+        }
+    }
 
     public string LimitText => Storage is null ? "-" : Storage.CacheLimitBytes <= 0 ? "Unlimited" : SizeFormatter.Format(Storage.CacheLimitBytes);
     public string UsedText => Storage is null ? "-" : SizeFormatter.Format(Storage.UsedBytes) +
@@ -183,33 +211,121 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
         _coordinator.Recompute();
     }
 
+    /// <summary>
+    /// Deletes one file. For a base game the dialog offers (ticked by default) to delete its updates and
+    /// DLC too; an update or DLC only ever deletes itself.
+    /// </summary>
     [RelayCommand]
     private async Task DeleteAsync(LocalGameViewModel? game)
     {
         if (game is null) return;
         var pinnedNote = game.IsPinned ? " This game is pinned." : string.Empty;
-        if (!await _dialogs.ConfirmAsync("Delete game",
+        var companions = CompanionsOf(game);
+        List<LocalGameViewModel> targets = [game];
+
+        if (companions.Count > 0)
+        {
+            var withCompanions = await _dialogs.ConfirmWithOptionAsync("Delete game",
                 $"Delete \"{game.Name}\" ({game.SizeText}) from your computer?{pinnedNote}\n\n{game.PathText}\n\n" +
-                "Only this game file is removed. Emulator saves, settings, firmware and keys are not touched.",
-                "Delete", destructive: true))
-            return;
-        await DeleteGamesAsync([game]);
+                "Emulator saves, settings, firmware and keys are not touched.",
+                $"Also delete its {Count(companions.Count, "update/DLC file", "update/DLC files")} ({SizeFormatter.Format(companions.Sum(c => c.Game.ActualSize))})",
+                optionDefault: true, "Delete", destructive: true);
+            if (withCompanions is null) return;
+            if (withCompanions.Value) targets.AddRange(companions);
+        }
+        else
+        {
+            var scope = game.Game.ContentType == ContentType.Base
+                ? "Only this game file is removed."
+                : $"Only this {game.TypeText.ToLowerInvariant()} is removed; the base game and its other updates and DLC stay.";
+            if (!await _dialogs.ConfirmAsync("Delete game",
+                    $"Delete \"{game.Name}\" ({game.SizeText}) from your computer?{pinnedNote}\n\n{game.PathText}\n\n" +
+                    $"{scope} Emulator saves, settings, firmware and keys are not touched.",
+                    "Delete", destructive: true))
+                return;
+        }
+
+        if (IsEntireLibrary(targets) && !await ConfirmDeleteEverythingAsync(targets)) return;
+        await DeleteGamesAsync(targets);
     }
 
+    /// <summary>Deletes exactly the ticked files. Deleting every file in the library needs the typed confirmation.</summary>
     [RelayCommand]
     private async Task DeleteSelectedAsync()
     {
         var selected = _all.Values.Where(v => v.IsSelected).ToList();
         if (selected.Count == 0) return;
-        var pinned = selected.Count(s => s.IsPinned);
-        if (!await _dialogs.ConfirmAsync("Delete games",
-                $"Delete {selected.Count} game file(s) and recover {SizeFormatter.Format(SelectedBytes)}?" +
-                (pinned > 0 ? $" {pinned} of them are pinned." : string.Empty) +
-                "\n\nEmulator saves, settings, firmware and keys are not touched.",
-                "Delete", destructive: true))
-            return;
+
+        if (IsEntireLibrary(selected))
+        {
+            if (!await ConfirmDeleteEverythingAsync(selected)) return;
+        }
+        else
+        {
+            var pinned = selected.Count(s => s.IsPinned);
+            if (!await _dialogs.ConfirmAsync("Delete games",
+                    $"Delete {Count(selected.Count, "game file", "game files")} and recover {SizeFormatter.Format(SelectedBytes)}?" +
+                    (pinned > 0 ? $" {pinned} of them are pinned." : string.Empty) +
+                    "\n\nEmulator saves, settings, firmware and keys are not touched.",
+                    "Delete", destructive: true))
+                return;
+        }
         await DeleteGamesAsync(selected);
     }
+
+    private bool IsEntireLibrary(IReadOnlyCollection<LocalGameViewModel> targets) =>
+        _all.Count > 0 && _all.Keys.All(path => targets.Any(t => string.Equals(t.Game.LocalPath, path, StringComparison.OrdinalIgnoreCase)));
+
+    private Task<bool> ConfirmDeleteEverythingAsync(IReadOnlyCollection<LocalGameViewModel> targets)
+    {
+        var manual = targets.Count(t => !t.Game.IsManaged);
+        var pinned = targets.Count(t => t.IsPinned);
+        var folder = _settings.Current.GamesDirectory;
+        return _dialogs.ConfirmByTypingAsync("Delete your entire library",
+            $"This deletes your entire library: all {Count(targets.Count, "game file", "game files")} " +
+            $"({SizeFormatter.Format(targets.Sum(t => t.Game.ActualSize))}) in {folder}" +
+            (manual > 0 ? $", including {Count(manual, "file", "files")} you added yourself" : string.Empty) +
+            (pinned > 0 ? $" and {Count(pinned, "pinned game", "pinned games")}" : string.Empty) + ".\n\n" +
+            "The files are deleted permanently, not moved to the Recycle Bin, and can't be recovered. " +
+            "Eden saves, settings, firmware and keys are not touched.",
+            DeleteAllPhrase, "Delete everything");
+    }
+
+    private List<LocalGameViewModel> CompanionsOf(LocalGameViewModel game)
+    {
+        var paths = GameGrouping.CompanionsOf(game.Game, _all.Values.Select(v => v.Game))
+            .Select(g => g.LocalPath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return _all.Values.Where(v => paths.Contains(v.Game.LocalPath)).ToList();
+    }
+
+    /// <summary>Ticking a base game ticks its updates and DLC (and unticking unticks them); ticking those never ticks anything else.</summary>
+    private void OnSelectionChanged(LocalGameViewModel game)
+    {
+        if (!_bulkSelecting && game.Game.ContentType == ContentType.Base)
+        {
+            _bulkSelecting = true;
+            try
+            {
+                foreach (var companion in CompanionsOf(game)) companion.IsSelected = game.IsSelected;
+            }
+            finally
+            {
+                _bulkSelecting = false;
+            }
+        }
+        NotifySelectionChanged();
+    }
+
+    private void NotifySelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectedBytes));
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(DeleteSelectedText));
+        OnPropertyChanged(nameof(AllSelected));
+    }
+
+    private static string Count(int n, string one, string many) => $"{n} {(n == 1 ? one : many)}";
 
     private async Task DeleteGamesAsync(IEnumerable<LocalGameViewModel> games)
     {
@@ -272,12 +388,10 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
             else
             {
                 vm = new LocalGameViewModel(game, remote);
-                vm.PropertyChanged += (_, e) =>
+                var row = vm;
+                row.PropertyChanged += (_, e) =>
                 {
-                    if (e.PropertyName != nameof(LocalGameViewModel.IsSelected)) return;
-                    OnPropertyChanged(nameof(SelectedBytes));
-                    OnPropertyChanged(nameof(HasSelection));
-                    OnPropertyChanged(nameof(DeleteSelectedText));
+                    if (e.PropertyName == nameof(LocalGameViewModel.IsSelected)) OnSelectionChanged(row);
                 };
                 _all[game.LocalPath] = vm;
             }
@@ -285,9 +399,7 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
         foreach (var stale in _all.Keys.Where(k => !seen.Contains(k)).ToList()) _all.Remove(stale);
 
         ApplyFilter();
-        OnPropertyChanged(nameof(SelectedBytes));
-        OnPropertyChanged(nameof(HasSelection));
-        OnPropertyChanged(nameof(DeleteSelectedText));
+        NotifySelectionChanged();
         _ = RefreshStorageAsync();
     }
 
@@ -333,5 +445,6 @@ public sealed partial class DownloadedGamesViewModel : ViewModelBase
             foreach (var vm in list) Items.Add(vm);
         }
         OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(AllSelected));
     }
 }

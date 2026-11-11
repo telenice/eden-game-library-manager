@@ -21,6 +21,21 @@ public static class GameGrouping
         ?? "path:" + game.LocalPath;
 
     /// <summary>
+    /// The updates and DLC on disk that belong to <paramref name="game"/> when it is a base game. Empty
+    /// for an update or DLC: those never pull in the base game or each other.
+    /// </summary>
+    public static IReadOnlyList<LocalGame> CompanionsOf(LocalGame game, IEnumerable<LocalGame> games)
+    {
+        if (game.ContentType != ContentType.Base) return [];
+        var key = GroupKey(game);
+        return games
+            .Where(g => g.ContentType is ContentType.Update or ContentType.Dlc &&
+                        !string.Equals(g.LocalPath, game.LocalPath, StringComparison.OrdinalIgnoreCase) &&
+                        GroupKey(g) == key)
+            .ToList();
+    }
+
+    /// <summary>
     /// The per-game folder for a catalogue item: "&lt;base game name&gt; [&lt;base title id&gt;]".
     /// AeroFoil's <c>title_name</c> is the base game's name for updates and DLC too, so all
     /// content for a title lands in the same folder.

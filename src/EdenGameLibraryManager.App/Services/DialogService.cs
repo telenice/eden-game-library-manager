@@ -10,6 +10,13 @@ namespace EdenGameLibraryManager.App.Services;
 public interface IDialogService
 {
     Task<bool> ConfirmAsync(string title, string message, string confirmText = "OK", bool destructive = false);
+
+    /// <summary>A confirmation with one checkbox. Returns null when cancelled, otherwise whether the box was ticked.</summary>
+    Task<bool?> ConfirmWithOptionAsync(string title, string message, string optionText, bool optionDefault, string confirmText, bool destructive = false);
+
+    /// <summary>A destructive confirmation that only enables its button once <paramref name="requiredText"/> is typed exactly.</summary>
+    Task<bool> ConfirmByTypingAsync(string title, string message, string requiredText, string confirmText);
+
     Task ShowMessageAsync(string title, string message);
     Task<string?> PickFolderAsync(string title, string? startPath);
 
@@ -36,6 +43,45 @@ public sealed class DialogService : IDialogService
         cancel.Click += (_, _) => window.Close();
 
         window.Content = Layout(message, confirm, cancel);
+        await window.ShowDialog(Owner);
+        return result;
+    }
+
+    public async Task<bool?> ConfirmWithOptionAsync(string title, string message, string optionText, bool optionDefault, string confirmText, bool destructive = false)
+    {
+        if (Owner is null) return null;
+        bool? result = null;
+        var window = CreateWindow(title);
+
+        var option = new CheckBox { Content = new TextBlock { Text = optionText, TextWrapping = TextWrapping.Wrap }, IsChecked = optionDefault };
+        var confirm = new Button { Content = confirmText, IsDefault = !destructive, MinWidth = 96 };
+        confirm.Classes.Add(destructive ? "danger" : "accent");
+        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 96 };
+        confirm.Click += (_, _) => { result = option.IsChecked == true; window.Close(); };
+        cancel.Click += (_, _) => window.Close();
+
+        window.Content = Layout(message, [option], confirm, cancel);
+        await window.ShowDialog(Owner);
+        return result;
+    }
+
+    public async Task<bool> ConfirmByTypingAsync(string title, string message, string requiredText, string confirmText)
+    {
+        if (Owner is null) return false;
+        var result = false;
+        var window = CreateWindow(title);
+
+        var prompt = new TextBlock { Text = $"Type {requiredText} to confirm.", FontWeight = FontWeight.SemiBold };
+        var input = new TextBox { Watermark = requiredText };
+        var confirm = new Button { Content = confirmText, MinWidth = 96, IsEnabled = false };
+        confirm.Classes.Add("danger");
+        var cancel = new Button { Content = "Cancel", IsCancel = true, IsDefault = true, MinWidth = 96 };
+        input.TextChanged += (_, _) => confirm.IsEnabled = string.Equals(input.Text?.Trim(), requiredText, StringComparison.Ordinal);
+        confirm.Click += (_, _) => { result = confirm.IsEnabled; window.Close(); };
+        cancel.Click += (_, _) => window.Close();
+        window.Opened += (_, _) => input.Focus();
+
+        window.Content = Layout(message, [prompt, input], confirm, cancel);
         await window.ShowDialog(Owner);
         return result;
     }
@@ -84,7 +130,9 @@ public sealed class DialogService : IDialogService
         ShowInTaskbar = false,
     };
 
-    private static Control Layout(string message, params Button[] buttons)
+    private static Control Layout(string message, params Button[] buttons) => Layout(message, [], buttons);
+
+    private static Control Layout(string message, Control[] extras, params Button[] buttons)
     {
         var buttonRow = new StackPanel
         {
@@ -94,15 +142,19 @@ public sealed class DialogService : IDialogService
         };
         foreach (var b in buttons) buttonRow.Children.Add(b);
 
-        return new StackPanel
+        var panel = new StackPanel
         {
             Margin = new Avalonia.Thickness(24),
             Spacing = 20,
-            Children =
-            {
-                new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 412 },
-                buttonRow,
-            },
+            Children = { new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 412 } },
         };
+        if (extras.Length > 0)
+        {
+            var group = new StackPanel { Spacing = 8 };
+            foreach (var extra in extras) group.Children.Add(extra);
+            panel.Children.Add(group);
+        }
+        panel.Children.Add(buttonRow);
+        return panel;
     }
 }
