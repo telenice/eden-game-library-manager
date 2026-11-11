@@ -99,6 +99,38 @@ public class TorBoxTests
     }
 
     [Fact]
+    public async Task Link_requests_are_spaced_apart_even_across_concurrent_downloads()
+    {
+        var times = new System.Collections.Concurrent.ConcurrentQueue<DateTime>();
+        var handler = new FakeHandler(_ =>
+        {
+            times.Enqueue(DateTime.UtcNow);
+            return FakeHandler.Json("""{"success":true,"data":"https://nexus-1.neur.tb-cdn.st/dld/abc"}""");
+        });
+        var client = TestData.TorBox(handler);
+        client.LinkRequestSpacing = TimeSpan.FromMilliseconds(400);
+        var item = new RemoteGameItem { Name = "DLC", Url = "torbox:torrents/1/0#a.nsp" };
+
+        await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => client.RequestDownloadLinkAsync(Connection, item, default)));
+
+        var ordered = times.OrderBy(t => t).ToList();
+        Assert.Equal(3, ordered.Count);
+        for (var i = 1; i < ordered.Count; i++)
+            Assert.True(ordered[i] - ordered[i - 1] >= TimeSpan.FromMilliseconds(380), $"gap {i} was {(ordered[i] - ordered[i - 1]).TotalMilliseconds} ms");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    public async Task Refused_link_requests_keep_their_status(HttpStatusCode status)
+    {
+        var handler = new FakeHandler(_ => FakeHandler.Json("""{"success":false,"detail":""}""", status));
+        var item = new RemoteGameItem { Name = "DLC", Url = "torbox:torrents/1/0#a.nsp" };
+        var ex = await Assert.ThrowsAsync<AeroFoilException>(() => TestData.TorBox(handler).RequestDownloadLinkAsync(Connection, item, default));
+        Assert.Equal((int)status, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task Plain_http_download_links_are_refused()
     {
         var handler = new FakeHandler(_ => FakeHandler.Json("""{"success":true,"data":"http://nexus-1.neur.tb-cdn.st/file"}"""));
@@ -189,6 +221,59 @@ public partial class DownloadManagerTests
         // The link is used exactly as TorBox issued it; nothing else (no Bearer header) is added.
         var cdn = Assert.Single(h.Handler.Requests, r => r.RequestUri!.Host == "nexus-1.neur.tb-cdn.st");
         Assert.Null(cdn.Headers.Authorization);
+    }
+
+    private static RemoteGameItem TorBoxItem() => new()
+    {
+        Name = "Smash DLC",
+        AppId = "01006A800016F001",
+        TitleId = "01006A800016E000",
+        ContentType = ContentType.Dlc,
+        AppVersion = "0",
+        Size = Payload.Length,
+        Filename = "Smash DLC [01006A800016F001][v0].nsp",
+        Url = "torbox:torrents/7/1#Smash.nsp",
+    };
+
+    [Theory]
+    [InlineData("link", HttpStatusCode.TooManyRequests)]
+    [InlineData("link", HttpStatusCode.BadRequest)]
+    [InlineData("file", HttpStatusCode.BadRequest)]
+    public async Task TorBox_slow_down_answers_are_retried_with_a_fresh_link(string failing, HttpStatusCode status)
+    {
+        using var temp = new TempDirectory();
+        var linkRequests = 0;
+        var fileRequests = 0;
+        var h = await CreateAsync(temp, r =>
+        {
+            if (r.RequestUri!.Host == "api.torbox.app")
+                return ++linkRequests == 1 && failing == "link"
+                    ? FakeHandler.Json("""{"success":false,"detail":""}""", status)
+                    : FakeHandler.Json("""{"success":true,"data":"https://nexus-1.neur.tb-cdn.st/dld/abc"}""");
+            return ++fileRequests == 1 && failing == "file" ? new HttpResponseMessage(status) : FileResponse(Payload);
+        });
+        h.Manager.SlowDownBackoff = _ => TimeSpan.FromMilliseconds(10);
+        h.Connections.Connection = TorBoxClient.ConnectionFor("tb-key-123");
+
+        var task = h.Manager.Enqueue(TorBoxItem());
+        await WaitForAsync(h.Manager, task.Id, s => s.IsTerminal());
+
+        Assert.Equal(DownloadStatus.Completed, task.Status);
+        Assert.Equal(2, linkRequests);
+    }
+
+    [Fact]
+    public async Task AeroFoil_bad_request_is_not_retried()
+    {
+        using var temp = new TempDirectory();
+        var h = await CreateAsync(temp, _ => new HttpResponseMessage(HttpStatusCode.BadRequest));
+        h.Manager.SlowDownBackoff = _ => TimeSpan.FromMilliseconds(10);
+
+        var task = h.Manager.Enqueue(TestData.Item("Game", "0100000000010000", ContentType.Base, size: Payload.Length));
+        await WaitForAsync(h.Manager, task.Id, s => s.IsTerminal());
+
+        Assert.Equal(DownloadStatus.Failed, task.Status);
+        Assert.Single(h.Handler.Requests);
     }
 
     [Fact]

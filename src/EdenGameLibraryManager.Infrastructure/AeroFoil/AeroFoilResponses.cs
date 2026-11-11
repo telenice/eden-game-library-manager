@@ -31,7 +31,7 @@ internal static class AeroFoilResponses
         var code = (int)response.StatusCode;
         var message = await TryReadErrorMessageAsync(response, ct);
 
-        throw response.StatusCode switch
+        throw (response.StatusCode switch
         {
             HttpStatusCode.Unauthorized => new AeroFoilException(AeroFoilErrorKind.InvalidCredentials,
                 "The server rejected the username or password."),
@@ -46,7 +46,7 @@ internal static class AeroFoilResponses
                 $"The server timed out (HTTP {code})."),
             _ when code >= 500 => new AeroFoilException(AeroFoilErrorKind.ServerError, $"The server reported an error (HTTP {code})."),
             _ => new AeroFoilException(AeroFoilErrorKind.InvalidResponse, $"Unexpected server response (HTTP {code})."),
-        };
+        }).WithStatus(code);
     }
 
     /// <summary>Maps AeroFoil's textual error messages (from auth.basic_auth and tinfoil_access) to error kinds.</summary>

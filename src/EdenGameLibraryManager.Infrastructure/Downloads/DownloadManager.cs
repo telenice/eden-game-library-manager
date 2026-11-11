@@ -65,6 +65,9 @@ public sealed class DownloadManager : IDownloadManager
     internal int MaxAttempts { get; set; } = 6;
     internal Func<int, TimeSpan> Backoff { get; set; } = attempt => TimeSpan.FromSeconds(Math.Min(60, 2 * Math.Pow(2, attempt - 1)));
 
+    /// <summary>Longer waits when TorBox asks us to slow down: 30s, 60s, 90s… (capped at 5 minutes).</summary>
+    internal Func<int, TimeSpan> SlowDownBackoff { get; set; } = attempt => TimeSpan.FromSeconds(Math.Min(300, 30 * attempt));
+
     public event EventHandler<DownloadTask>? TaskCompleted;
     public event EventHandler? TasksChanged;
 
@@ -329,9 +332,9 @@ public sealed class DownloadManager : IDownloadManager
                         token);
                     break;
                 }
-                catch (Exception ex) when (IsTransient(ex) && attempt < MaxAttempts && !token.IsCancellationRequested)
+                catch (Exception ex) when ((IsTransient(ex) || IsTorBoxSlowDown(ex, connection)) && attempt < MaxAttempts && !token.IsCancellationRequested)
                 {
-                    var delay = Backoff(attempt);
+                    var delay = IsTorBoxSlowDown(ex, connection) ? SlowDownBackoff(attempt) : Backoff(attempt);
                     _logger.LogWarning("Download {Name} attempt {Attempt} failed: {Error}. Retrying in {Delay}s",
                         task.Item.Name, attempt, ex.Message, delay.TotalSeconds);
                     task.Message = $"{ex.Message} Retrying in {delay.TotalSeconds:0}s (attempt {attempt + 1} of {MaxAttempts}).";
@@ -494,6 +497,16 @@ public sealed class DownloadManager : IDownloadManager
         Directory.CreateDirectory(folder);
         return folder;
     }
+
+    /// <summary>
+    /// TorBox answers too many requests with 429, and its link API and download servers have also been
+    /// seen answering 400 under load or for a link that went stale. Each retry asks for a fresh link, so
+    /// both are retried after a longer wait. AeroFoil's rate limit means repeated failed sign-ins, so
+    /// it is never retried.
+    /// </summary>
+    private static bool IsTorBoxSlowDown(Exception ex, ServerConnection connection) =>
+        connection.Kind == ServerKind.TorBox &&
+        ex is AeroFoilException { Kind: AeroFoilErrorKind.RateLimited } or AeroFoilException { StatusCode: 400 or 429 };
 
     private static bool IsTransient(Exception ex) => ex switch
     {

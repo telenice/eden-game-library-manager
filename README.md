@@ -118,6 +118,9 @@ AeroFoil server. Get your API key from **torbox.app → Settings**.
   (`*.tb-cdn.st`). Your own connection only matters for your download speed. TorBox's servers
   honour `Range` with a strong `ETag`, so pause, resume, retries, size verification and the speed
   limit work as with AeroFoil.
+- **Pacing.** Download-link requests are spaced at least 5 seconds apart, across all downloads, so a
+  queue of many small files (a game's DLC) doesn't flood TorBox. If TorBox still answers 429 or 400,
+  the download waits 30 s, 60 s, 90 s… (up to 5 minutes) and retries with a fresh link.
 - **The API key stays with TorBox.** It's sent as a Bearer header to `mylist` and as the `token`
   query parameter that `requestdl` requires. TorBox's download links also carry the key as
   `?token=`. The app uses whichever host TorBox's API returns (TorBox doesn't publish a fixed list),

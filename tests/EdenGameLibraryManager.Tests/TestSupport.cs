@@ -37,7 +37,7 @@ internal static class TestData
         new(new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan }, NullLogger<AeroFoilClient>.Instance);
 
     public static TorBoxClient TorBox(FakeHandler handler) =>
-        new(new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan }, NullLogger<TorBoxClient>.Instance);
+        new(new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan }, NullLogger<TorBoxClient>.Instance) { LinkRequestSpacing = TimeSpan.Zero };
 
     public static DownloadLinkResolver Links(FakeHandler handler) => new(TorBox(handler));
 

@@ -26,6 +26,11 @@ public sealed class AeroFoilException(AeroFoilErrorKind kind, string message, Ex
 {
     public AeroFoilErrorKind Kind { get; } = kind;
 
+    /// <summary>The HTTP status that caused the failure, when there was one.</summary>
+    public int? StatusCode { get; init; }
+
+    public AeroFoilException WithStatus(int statusCode) => new(Kind, Message, InnerException) { StatusCode = statusCode };
+
     /// <summary>Transient failures may be retried with backoff; credential and permission failures must not.</summary>
     public bool IsTransient => Kind is AeroFoilErrorKind.Network or AeroFoilErrorKind.Timeout or AeroFoilErrorKind.ServerError;
 
