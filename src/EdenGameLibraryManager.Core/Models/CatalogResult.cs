@@ -23,3 +23,19 @@ public sealed record TitleDetails
     public string? Description { get; init; }
     public IReadOnlyList<string> ScreenshotUrls { get; init; } = [];
 }
+
+/// <summary>One title from titledb: the eShop name, text and artwork for an application id.</summary>
+public sealed record TitleInfo
+{
+    public required string Id { get; init; }
+    public string? Name { get; init; }
+    public string? Publisher { get; init; }
+    public string? Description { get; init; }
+    public string? IconUrl { get; init; }
+    public IReadOnlyList<string> ScreenshotUrls { get; init; } = [];
+    public DateOnly? ReleaseDate { get; init; }
+    public string? Category { get; init; }
+}
+
+/// <summary>State of the local titledb copy, for Settings.</summary>
+public sealed record TitleDbStatus(bool IsAvailable, string? Region, int TitleCount, DateTimeOffset? UpdatedAt, string? LastError);

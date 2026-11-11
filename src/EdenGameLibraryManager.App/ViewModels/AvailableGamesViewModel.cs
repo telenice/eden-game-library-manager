@@ -104,7 +104,7 @@ public sealed partial class AvailableGamesViewModel : ViewModelBase
 
     public string EmptyText => _coordinator.Catalog is null
         ? (_coordinator.State == ConnectionState.NotConfigured
-            ? "Connect to your AeroFoil server in Settings to see available games."
+            ? "Connect to your AeroFoil server or TorBox account in Settings to see available games."
             : _coordinator.StatusMessage ?? "No catalogue loaded yet.")
         : "No games match the current filters.";
 
@@ -228,7 +228,7 @@ public sealed partial class AvailableGamesViewModel : ViewModelBase
         if (!_coordinator.CanDownload)
         {
             await _dialogs.ShowMessageAsync("Server unavailable",
-                "New downloads are disabled while the AeroFoil server is offline or unreachable. Refresh once the connection is back.");
+                "New downloads are disabled while the server is offline or unreachable. Refresh once the connection is back.");
             return false;
         }
         if (string.IsNullOrWhiteSpace(_settings.Current.GamesDirectory))

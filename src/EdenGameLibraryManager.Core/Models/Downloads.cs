@@ -114,3 +114,9 @@ public sealed class DownloadTask
         CreatedAt = CreatedAt,
     };
 }
+
+/// <summary>
+/// Where to fetch one file from. <see cref="Connection"/> decides which credentials go with the
+/// request: the AeroFoil profile itself, or an anonymous connection for a TorBox download link.
+/// </summary>
+public sealed record DownloadLink(ServerConnection Connection, Uri Uri);

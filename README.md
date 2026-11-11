@@ -1,9 +1,10 @@
 # Eden Game Library Manager
 
 A desktop companion for the Eden Nintendo Switch emulator. It connects to a self-hosted
-[AeroFoil](https://github.com/luketanti/AeroFoil) server over HTTPS, shows the games you don't
-have yet, and downloads the ones you pick into a local folder. Eden scans that folder on its own;
-this app never launches or changes Eden.
+[AeroFoil](https://github.com/luketanti/AeroFoil) server over HTTPS, or to the files stored in your
+own [TorBox](https://torbox.app) account, shows the games you don't have yet, and downloads the ones
+you pick into a local folder. Eden scans that folder on its own; this app never launches or changes
+Eden.
 
 - **Platforms:** Windows 10/11 x64, macOS 12+ (Apple silicon and Intel), Linux x64/arm64
 - **Stack:** C# / .NET 10, Avalonia UI 11.3 (Fluent, MVVM), SQLite, `HttpClient`
@@ -23,7 +24,9 @@ this app never launches or changes Eden.
 | **Updates & DLC with the game** | Downloading a base game also queues its latest update and every DLC on the server (Settings → Downloads; on by default). The per-item buttons in the details panel download a single file. |
 | **Folder per game** | Files are saved as `<games folder>\<Game name> [TitleID]\…`, with the base game, update and DLC together (Settings → Local games directory; on by default). **Organise existing downloads** moves files this app downloaded earlier into that layout. Files you added yourself are never moved. |
 | **Group by game** | One card per title with its updates and DLC. An **Update available** / **New DLC** badge appears when you have the base game but newer content is on the server, and **Download N** fetches everything that's missing. |
-| **Server profiles** | Save several AeroFoil servers and switch between them from the sidebar. Each profile has its own credentials, offline catalogue cache and download queue. The games folder and cache limit are shared. |
+| **Server profiles** | Save several AeroFoil servers and TorBox accounts and switch between them from the sidebar. Each profile has its own credentials, offline catalogue cache and download queue. The games folder and cache limit are shared. |
+| **TorBox** | Lists the `.nsp`/`.nsz`/`.xci`/`.xcz` files in your finished TorBox downloads and fetches them straight from TorBox, so your home upload speed doesn't matter. See [TorBox profiles](#torbox-profiles). |
+| **Game info from titledb** | Names, descriptions, icons and screenshots by title ID from [titledb](https://github.com/blawar/titledb), without a server. Required for TorBox; fills gaps for AeroFoil. See [Game info and artwork](#game-info-and-artwork-titledb). |
 | **Downloaded Games** | Every game file in your games folder, nested folders included, with updates and DLC listed under their base game. Shows size, path, download date, pinned status, **Open Folder** and **Delete** (after confirmation). Supports multi-select delete and storage figures. |
 | **Downloads** | A persistent queue with progress, speed, ETA and status (Queued, Downloading, Paused, Verifying, Completed, Cancelled, Failed). Pause, resume, cancel and retry each transfer. |
 | **Settings** | Server URL and credentials with a connection test, games folder, cache limit, automatic cleanup, concurrency (1–4), speed limit, auto-resume, startup and periodic refresh, and theme. |
@@ -66,9 +69,11 @@ this app never launches or changes Eden.
 
 A four-step wizard opens on first launch:
 
-1. **Connect to AeroFoil.** Enter the server URL (`https://aerofoil.example.com`), username and
-   password, then click **Test Connection**. The test confirms that sign-in and catalogue access
-   work and tells you how many items it found. You can't continue until the test passes.
+1. **Connect to AeroFoil or TorBox.** For AeroFoil, enter the server URL
+   (`https://aerofoil.example.com`), username and password. For TorBox, choose **TorBox account**
+   and paste your API key. Then click **Test Connection**. The test confirms that sign-in and
+   catalogue access work and tells you how many items it found. You can't continue until the test
+   passes.
 2. **Choose the games directory**, e.g. `D:\Switch Games` or `~/Games/Switch`. Add the same folder
    to Eden's game directories so new downloads show up automatically. Each game gets its own
    subfolder, so in Eden's game list right-click that directory and enable **Scan Subfolders**.
@@ -82,8 +87,8 @@ You can change all of this later in **Settings**.
 
 ### More than one server
 
-In **Settings → AeroFoil server profiles**, click **Add server**, fill in its details (an optional
-name, URL, username, password), test it and **Save settings**. The **Server** box at the top of the
+In **Settings → Server profiles**, click **Add server**, choose **AeroFoil server** or **TorBox
+account**, fill in its details, test it and **Save settings**. The **Server** box at the top of the
 sidebar switches the active profile.
 
 - Each profile's password is stored separately in the OS secret store.
@@ -95,6 +100,58 @@ sidebar switches the active profile.
   by server.
 - Settings from version 1.0.0 (single server) are migrated automatically into a profile called
   *Default*, including the saved password.
+
+### TorBox profiles
+
+A TorBox profile uses the files in your own TorBox account (a paid plan is required) instead of an
+AeroFoil server. Get your API key from **torbox.app → Settings**.
+
+- **Catalogue.** The app reads `GET /v1/api/{torrents,usenet,webdl}/mylist` and lists every
+  `.nsp`, `.nsz`, `.xci` and `.xcz` file in downloads TorBox has finished storing
+  (`download_present`). Files still downloading on TorBox appear once they're done.
+- **Identity comes from the file name.** TorBox only knows file names, so the title ID, version and
+  type (base, update or DLC) are read from `[0100…]` and `[v…]` tags, e.g.
+  `Game [0100ABCD12340000][v0].nsp`. Files without a `[TitleID]` tag are still listed and
+  downloadable, but get no artwork or grouping.
+- **Downloads go straight to TorBox.** For each attempt the app asks
+  `GET /v1/api/{kind}/requestdl` for a fresh direct link and downloads from TorBox's servers
+  (`*.tb-cdn.st`). Your own connection only matters for your download speed. TorBox's servers
+  honour `Range` with a strong `ETag`, so pause, resume, retries, size verification and the speed
+  limit work as with AeroFoil.
+- **The API key stays with TorBox.** It's sent as a Bearer header to `mylist` and as the `token`
+  query parameter that `requestdl` requires. TorBox's download links also carry the key as
+  `?token=`. The app uses whichever host TorBox's API returns (TorBox doesn't publish a fixed list),
+  but only over HTTPS, and it refuses redirects to any other host, so the link can't be passed on.
+  Links are held in memory for one attempt and are never logged or saved. The key is stored like a
+  password (DPAPI, Keychain or Secret Service).
+- **Getting files into TorBox is up to you.** TorBox stores files from torrents, Usenet and web
+  links, so adding your own files still uses your upload once (for example, seed a torrent you
+  created, or add a web download pointing at your own server). After that, every download comes
+  from TorBox. Check TorBox's retention rules before deleting your only copy.
+
+This app doesn't use [torbox-tinfoil-server](https://github.com/TorBox-App/torbox-tinfoil-server).
+That server streams each file through the machine it runs on, which wouldn't help with a slow home
+upload, and it only answers requests that look like they come from a Switch.
+
+### Game info and artwork (titledb)
+
+titledb is a public, regularly updated list of eShop details by title ID. With **Settings → Game
+info and artwork** turned on (the default), the app:
+
+- downloads the chosen region file once, e.g. `US.en.json` (about 90 MB of JSON, about 26 MB
+  compressed), from `raw.githubusercontent.com/blawar/titledb`, without credentials;
+- reads it entry by entry into a local SQLite copy, `titledb.db` (about 55 MB for `US.en`), keeping
+  only name, publisher, description, icon, screenshots, release date and category;
+- checks for changes weekly with `If-None-Match`, so an unchanged file isn't downloaded again
+  (**Update now** forces a check);
+- loads icons and screenshots from Nintendo's image server (`img-eshop.cdn.nintendo.net`), the only
+  host titledb artwork is accepted from, again without credentials.
+
+TorBox profiles take their names, icons, release dates and categories from titledb: base games and
+DLC use their own entries, and updates are shown as "*Game* (Update)". AeroFoil profiles keep
+everything their server sends and only gain missing fields; descriptions and screenshots come from
+titledb when AeroFoil's `title-info` has none. Some titles in titledb have missing descriptions or
+broken image links; those are shown without them.
 
 ---
 
@@ -206,12 +263,15 @@ example on an unplugged drive, the database is left untouched.
 - Credentials are attached per request and **only** to the configured origin. Redirects are
   followed manually, only within that origin, so credentials can't leak to another host.
 - Catalogue URLs (downloads, icons, screenshots) must resolve to the configured origin. Anything
-  else is rejected.
+  else is rejected. Two exceptions: titledb artwork, accepted only over HTTPS from
+  `img-eshop.cdn.nintendo.net` and fetched without credentials, and TorBox download links, which
+  come from TorBox's API, must be HTTPS (they embed the API key) and follow redirects only within
+  the link's own origin.
 - Server-supplied file names are sanitised: path separators and traversal are rejected, Windows
   reserved names are neutralised, and only game extensions are allowed. Existing files are never
   overwritten; a ` (1)` suffix is added instead.
-- Passwords are stored with DPAPI (Windows), Keychain (macOS) or the Secret Service via
-  `secret-tool` (Linux), or not at all. They never appear in JSON files or logs.
+- Passwords and TorBox API keys are stored with DPAPI (Windows), Keychain (macOS) or the Secret
+  Service via `secret-tool` (Linux), or not at all. They never appear in JSON files or logs.
 - Downloaded files are never executed. *Open Folder* only reveals the file in Explorer, Finder or
   your Linux file manager.
 
@@ -230,8 +290,9 @@ Inside the root:
 - `Downloads/*.partial`: in-progress transfers, never inside the games folder
 - `Artwork/`: cached icons and screenshots
 - `Catalogs/*.json`: last catalogue of each server, used offline
+- `titledb.db`: local copy of titledb, rebuilt when it changes
 - `Logs/app-YYYYMMDD.log`: logs, kept for 14 days
-- `credentials-<profile>.dat`: Windows only, one DPAPI-encrypted password per profile (macOS and
+- `credentials-<profile>.dat`: Windows only, one DPAPI-encrypted password or API key per profile (macOS and
   Linux use the Keychain / Secret Service instead)
 
 If the database becomes corrupted, it's renamed to `library.db.corrupt-<timestamp>` and rebuilt
@@ -262,7 +323,9 @@ They cover catalogue parsing, the endpoint fallback, AeroFoil error payloads, cl
 and encryption detection, de-duplication, missing metadata, local/remote matching (versions,
 updates, DLC, manual files), Range resume, changed remote files, bad `Content-Range`, incomplete
 transfers, retries, cancel/pause/restore, cache limits, LRU, pinned protection, unsafe URLs and
-paths, offline startup, and database recovery.
+paths, offline startup, database recovery, the TorBox catalogue and download links (including
+refusing redirects to another host), streaming titledb parsing and ETag revalidation, and titledb
+enrichment.
 
 Optional **integration tests** run against a real server when these variables are set:
 
@@ -368,8 +431,11 @@ EdenGameLibraryManager.sln
 src/
   EdenGameLibraryManager.Core/            Models, interfaces, pure logic (matching, LRU planning, URL/path safety)
   EdenGameLibraryManager.Infrastructure/
-    AeroFoil/      AeroFoilClient, CatalogParser, AeroFoilLibraryProvider, GameMetadataService
-    Downloads/     HttpDownloader (Range/resume), DownloadManager (queue), BandwidthLimiter
+    AeroFoil/      AeroFoilClient, CatalogParser, SettingsConnectionProvider
+    TorBox/        TorBoxClient (mylist catalogue, requestdl links)
+    TitleDb/       TitleDatabase (streamed titledb import, SQLite lookups, weekly refresh)
+    Library/       ServerLibraryProvider (AeroFoil or TorBox, offline cache, titledb enrichment), GameMetadataService
+    Downloads/     HttpDownloader (Range/resume), DownloadManager (queue), DownloadLinkResolver, BandwidthLimiter
     Storage/       LocalLibraryService (scan/watch/delete), CacheManager, AppPaths, VolumeInfo
     Persistence/   ManifestService (SQLite), SettingsService (JSON)
     Security/      DPAPI / Keychain / Secret Service credential stores
@@ -382,9 +448,9 @@ docs/example-settings.json
 ```
 
 Main interfaces (`Core/Interfaces`): `IGameLibraryProvider`, `IAeroFoilClient`,
-`IGameMetadataService`, `ILocalLibraryService`, `IDownloadManager`, `ICacheManager`,
-`ISettingsService`, `IManifestService`, `ICredentialStore`. `AeroFoilLibraryProvider` is the only
-provider. The abstraction leaves room for more, but an SMB provider is intentionally not included.
+`IGameMetadataService`, `ITitleDatabase`, `IDownloadLinkResolver`, `ILocalLibraryService`,
+`IDownloadManager`, `ICacheManager`, `ISettingsService`, `IManifestService`, `ICredentialStore`.
+`ServerLibraryProvider` serves both profile types. An SMB provider is intentionally not included.
 
 Dependencies: Avalonia (+ Fluent theme, Inter font), CommunityToolkit.Mvvm, Microsoft.Data.Sqlite,
 Microsoft.Extensions.DependencyInjection / Logging, and System.Security.Cryptography.ProtectedData.

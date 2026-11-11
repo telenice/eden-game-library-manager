@@ -89,7 +89,7 @@ public class ProfileTests
         var handler = new FakeHandler(r => online
             ? FakeHandler.Json($$"""{"sections":[{"id":"all","title":"All","items":[{"name":"{{r.RequestUri!.Host}}","app_id":"0100000000010000","app_type":"BASE","url":"/api/get_game/1#a.nsp","size":1,"file_id":1}]}]}""")
             : throw new HttpRequestException("offline"));
-        var provider = new AeroFoilLibraryProvider(TestData.Client(handler), connections, paths, NullLogger<AeroFoilLibraryProvider>.Instance);
+        var provider = TestData.Provider(handler, connections, paths);
 
         await provider.GetCatalogAsync(default);
         var second = TestData.Connection with { BaseUri = new Uri("https://second.example.com/") };

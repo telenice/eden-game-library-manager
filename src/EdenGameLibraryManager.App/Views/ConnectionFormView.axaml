@@ -4,29 +4,48 @@
              x:Class="EdenGameLibraryManager.App.Views.ConnectionFormView"
              x:DataType="vm:ConnectionFormViewModel">
   <StackPanel Spacing="12">
-    <StackPanel>
-      <TextBlock Text="Profile name (optional)" Classes="label" />
-      <TextBox Text="{Binding ProfileName}" Watermark="e.g. Home server" />
-    </StackPanel>
-    <StackPanel>
-      <TextBlock Text="AeroFoil server URL" Classes="label" />
-      <TextBox Text="{Binding ServerUrl}" Watermark="https://aerofoil.example.com" />
-    </StackPanel>
     <Grid ColumnDefinitions="*,12,*">
       <StackPanel>
-        <TextBlock Text="Username" Classes="label" />
-        <TextBox Text="{Binding Username}" />
+        <TextBlock Text="Source" Classes="label" />
+        <ComboBox ItemsSource="{Binding KindOptions}" SelectedItem="{Binding SelectedKind}" HorizontalAlignment="Stretch" />
       </StackPanel>
       <StackPanel Grid.Column="2">
-        <TextBlock Text="Password" Classes="label" />
-        <TextBox Text="{Binding Password}" PasswordChar="•" RevealPassword="False" Classes="revealPasswordButton" />
+        <TextBlock Text="Profile name (optional)" Classes="label" />
+        <TextBox Text="{Binding ProfileName}" Watermark="e.g. Home server" />
       </StackPanel>
     </Grid>
-    <CheckBox IsChecked="{Binding RememberPassword}" IsEnabled="{Binding SupportsPasswordPersistence}" Content="Remember password" />
+
+    <StackPanel Spacing="12" IsVisible="{Binding IsAeroFoil}">
+      <StackPanel>
+        <TextBlock Text="AeroFoil server URL" Classes="label" />
+        <TextBox Text="{Binding ServerUrl}" Watermark="https://aerofoil.example.com" />
+      </StackPanel>
+      <Grid ColumnDefinitions="*,12,*">
+        <StackPanel>
+          <TextBlock Text="Username" Classes="label" />
+          <TextBox Text="{Binding Username}" />
+        </StackPanel>
+        <StackPanel Grid.Column="2">
+          <TextBlock Text="Password" Classes="label" />
+          <TextBox Text="{Binding Password}" PasswordChar="•" RevealPassword="False" Classes="revealPasswordButton" />
+        </StackPanel>
+      </Grid>
+    </StackPanel>
+
+    <StackPanel Spacing="8" IsVisible="{Binding IsTorBox}">
+      <TextBlock Text="TorBox API key" Classes="label" />
+      <TextBox Text="{Binding Password}" PasswordChar="•" RevealPassword="False" Classes="revealPasswordButton" />
+      <TextBlock Classes="muted small" TextWrapping="Wrap"
+                 Text="Find it at torbox.app → Settings. The app lists the .nsp, .nsz, .xci and .xcz files in your finished TorBox torrents, Usenet and web downloads, and downloads them straight from TorBox. File names need a [TitleID] tag (for example [0100ABCD12340000]) for names, artwork and update/DLC grouping." />
+    </StackPanel>
+
+    <CheckBox IsChecked="{Binding RememberPassword}" IsEnabled="{Binding SupportsPasswordPersistence}" Content="{Binding RememberLabel}" />
     <TextBlock Text="{Binding PersistenceNote}" Classes="muted small" TextWrapping="Wrap" />
-    <CheckBox IsChecked="{Binding AllowInsecureHttp}" Content="Allow insecure HTTP (trusted LAN or VPN servers only)" />
-    <TextBlock Classes="small" TextWrapping="Wrap" Foreground="{DynamicResource WarningBrush}" IsVisible="{Binding IsHttpUrl}"
-               Text="Plain HTTP sends your password and files unencrypted. Only use it on a private network you trust; use HTTPS over the internet." />
+    <StackPanel Spacing="12" IsVisible="{Binding IsAeroFoil}">
+      <CheckBox IsChecked="{Binding AllowInsecureHttp}" Content="Allow insecure HTTP (trusted LAN or VPN servers only)" />
+      <TextBlock Classes="small" TextWrapping="Wrap" Foreground="{DynamicResource WarningBrush}" IsVisible="{Binding IsHttpUrl}"
+                 Text="Plain HTTP sends your password and files unencrypted. Only use it on a private network you trust; use HTTPS over the internet." />
+    </StackPanel>
 
     <StackPanel Orientation="Horizontal" Spacing="12">
       <Button Content="Test Connection" Command="{Binding TestCommand}" IsEnabled="{Binding !IsTesting}" />

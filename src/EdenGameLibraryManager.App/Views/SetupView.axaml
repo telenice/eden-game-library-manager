@@ -19,7 +19,7 @@
         <!-- Step 1 -->
         <StackPanel Spacing="12" IsVisible="{Binding IsStep1}">
           <TextBlock TextWrapping="Wrap"
-                     Text="Enter the address of your AeroFoil server and your AeroFoil account. Use Test Connection to check that sign-in and catalogue access work." />
+                     Text="Choose AeroFoil to connect to a server you or your group runs, or TorBox to download the game files stored in your TorBox account. Use Test Connection to check that sign-in and catalogue access work." />
           <v:ConnectionFormView DataContext="{Binding Connection}" />
         </StackPanel>
 

@@ -13,12 +13,12 @@ public sealed partial class SetupViewModel : ViewModelBase
     private readonly ICredentialStore _credentials;
     private readonly IDialogService _dialogs;
 
-    public SetupViewModel(ISettingsService settings, ICredentialStore credentials, IAeroFoilClient client, IDialogService dialogs)
+    public SetupViewModel(ISettingsService settings, ICredentialStore credentials, IGameLibraryProvider provider, IDialogService dialogs)
     {
         _settings = settings;
         _credentials = credentials;
         _dialogs = dialogs;
-        Connection = new ConnectionFormViewModel(client, credentials,
+        Connection = new ConnectionFormViewModel(provider, credentials,
             settings.Current.ActiveProfile ?? new ServerProfile { Id = ServerProfile.NewId() });
         _gamesDirectory = settings.Current.GamesDirectory;
         _cacheLimitGb = (decimal)settings.Current.CacheLimitGb;
@@ -47,7 +47,7 @@ public sealed partial class SetupViewModel : ViewModelBase
 
     public string StepTitle => Step switch
     {
-        1 => "Step 1 of 4 · Connect to AeroFoil",
+        1 => "Step 1 of 4 · Connect to AeroFoil or TorBox",
         2 => "Step 2 of 4 · Choose games directory",
         3 => "Step 3 of 4 · Configure storage",
         _ => "Step 4 of 4 · Finish",

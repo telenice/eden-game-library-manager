@@ -6,10 +6,23 @@ public enum ViewMode { Grid, List }
 
 public enum AppTheme { Dark, Light, System }
 
-/// <summary>One AeroFoil server the user can switch to. The password lives in the OS secret store, keyed by <see cref="Id"/>.</summary>
+/// <summary>Where a profile's games come from.</summary>
+public enum ServerKind
+{
+    /// <summary>A self-hosted AeroFoil server (URL, username and password).</summary>
+    AeroFoil = 0,
+    /// <summary>A TorBox account's own downloads, fetched directly from TorBox with an API key.</summary>
+    TorBox = 1,
+}
+
+/// <summary>
+/// One game source the user can switch to. The password (or TorBox API key) lives in the OS secret
+/// store, keyed by <see cref="Id"/>.
+/// </summary>
 public sealed record ServerProfile
 {
     public required string Id { get; init; }
+    public ServerKind Kind { get; init; }
     public string Name { get; init; } = string.Empty;
     public string ServerUrl { get; init; } = string.Empty;
     public string Username { get; init; } = string.Empty;
@@ -20,6 +33,7 @@ public sealed record ServerProfile
 
     [JsonIgnore]
     public string DisplayName => !string.IsNullOrWhiteSpace(Name) ? Name
+        : Kind == ServerKind.TorBox ? "TorBox"
         : Uri.TryCreate(ServerUrl, UriKind.Absolute, out var u) ? u.Host
         : string.IsNullOrWhiteSpace(ServerUrl) ? "New server" : ServerUrl;
 
@@ -54,6 +68,12 @@ public sealed record AppSettings
 
     /// <summary>Global download speed limit in KB/s; 0 means unlimited.</summary>
     public int SpeedLimitKbps { get; init; }
+
+    /// <summary>Fill in names, descriptions and artwork from titledb (github.com/blawar/titledb).</summary>
+    public bool UseTitleDb { get; init; } = true;
+
+    /// <summary>titledb region file to use, e.g. "US.en" or "GB.en".</summary>
+    public string TitleDbRegion { get; init; } = "US.en";
 
     public AppTheme Theme { get; init; } = AppTheme.Dark;
     public ViewMode ViewMode { get; init; } = ViewMode.Grid;

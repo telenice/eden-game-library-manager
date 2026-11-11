@@ -26,6 +26,7 @@ public sealed class LibraryCoordinator
     private readonly IManifestService _manifest;
     private readonly IDownloadManager _downloads;
     private readonly IConnectionProvider _connections;
+    private readonly ITitleDatabase _titleDb;
     private readonly ILogger<LibraryCoordinator> _logger;
     private int _rescanQueued;
     private int _generation;
@@ -37,6 +38,7 @@ public sealed class LibraryCoordinator
         IManifestService manifest,
         IDownloadManager downloads,
         IConnectionProvider connections,
+        ITitleDatabase titleDb,
         ILogger<LibraryCoordinator> logger)
     {
         _provider = provider;
@@ -44,10 +46,13 @@ public sealed class LibraryCoordinator
         _manifest = manifest;
         _downloads = downloads;
         _connections = connections;
+        _titleDb = titleDb;
         _logger = logger;
 
         _library.FilesChanged += (_, _) => QueueRescan();
         _downloads.TaskCompleted += (_, _) => Dispatcher.UIThread.Post(Recompute);
+        // New titledb data means new names and artwork: fetch the catalogue again so it is applied.
+        _titleDb.Updated += (_, _) => Dispatcher.UIThread.Post(async () => await RefreshCatalogAsync());
     }
 
     public CatalogResult? Catalog { get; private set; }
@@ -75,7 +80,21 @@ public sealed class LibraryCoordinator
             SetState(ConnectionState.Offline, "Showing saved catalogue");
         Recompute();
 
+        _ = RefreshTitleDbAsync(force: false);
         if (refreshCatalog) await RefreshCatalogAsync();
+    }
+
+    /// <summary>Downloads titledb in the background when it is missing or more than a week old.</summary>
+    public async Task RefreshTitleDbAsync(bool force)
+    {
+        try
+        {
+            await Task.Run(() => _titleDb.RefreshAsync(force, CancellationToken.None));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "titledb refresh failed");
+        }
     }
 
     public async Task RefreshCatalogAsync()
@@ -95,7 +114,7 @@ public sealed class LibraryCoordinator
                 var generation = _generation;
                 if (_connections.GetConnection() is null)
                 {
-                    SetState(ConnectionState.NotConfigured, "Configure your AeroFoil server in Settings.");
+                    SetState(ConnectionState.NotConfigured, "Configure your AeroFoil server or TorBox account in Settings.");
                     break;
                 }
 

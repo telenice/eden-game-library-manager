@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EdenGameLibraryManager.Tests;
 
-public class DownloadManagerTests
+public partial class DownloadManagerTests
 {
     private static readonly byte[] Payload = Enumerable.Range(0, 50_000).Select(i => (byte)i).ToArray();
 
@@ -31,7 +31,7 @@ public class DownloadManagerTests
         var handler = new FakeHandler(server);
         var downloader = new HttpDownloader(TestData.Client(handler), new BandwidthLimiter(), NullLogger<HttpDownloader>.Instance);
         var connections = new StaticConnectionProvider(TestData.Connection);
-        var manager = new DownloadManager(downloader, connections, manifest, cache, library, s, paths, new BandwidthLimiter(),
+        var manager = new DownloadManager(downloader, TestData.Links(handler), connections, manifest, cache, library, s, paths, new BandwidthLimiter(),
             NullLogger<DownloadManager>.Instance)
         {
             Backoff = _ => TimeSpan.FromMilliseconds(10),
@@ -251,7 +251,7 @@ public class DownloadManagerTests
         // A fresh manager (simulating an app restart) restores the paused transfer.
         var downloader = new HttpDownloader(TestData.Client(new FakeHandler(_ => FileResponse(Payload))), new BandwidthLimiter(), NullLogger<HttpDownloader>.Instance);
         var library = new LocalLibraryService(h.Manifest, h.Settings, NullLogger<LocalLibraryService>.Instance);
-        var restarted = new DownloadManager(downloader, h.Connections, h.Manifest, new CacheManager(library, h.Settings, NullLogger<CacheManager>.Instance),
+        var restarted = new DownloadManager(downloader, TestData.Links(h.Handler), h.Connections, h.Manifest, new CacheManager(library, h.Settings, NullLogger<CacheManager>.Instance),
             library, h.Settings, h.Paths, new BandwidthLimiter(), NullLogger<DownloadManager>.Instance);
         await restarted.InitializeAsync(default);
 
@@ -346,8 +346,7 @@ public class LibraryProviderTests
         var handler = new FakeHandler(_ => online
             ? FakeHandler.Json("""{"sections":[{"id":"all","title":"All","total":1,"truncated":false,"items":[{"name":"A","app_id":"0100000000010000","app_type":"BASE","url":"/api/get_game/1#a.nsp","size":10,"file_id":1}]}]}""")
             : throw new HttpRequestException("Connection refused"));
-        var provider = new AeroFoilLibraryProvider(TestData.Client(handler), new StaticConnectionProvider(TestData.Connection), paths,
-            NullLogger<AeroFoilLibraryProvider>.Instance);
+        var provider = TestData.Provider(handler, new StaticConnectionProvider(TestData.Connection), paths);
 
         var live = await provider.GetCatalogAsync(default);
         Assert.False(live.FromCache);
@@ -366,8 +365,7 @@ public class LibraryProviderTests
         var paths = new AppPaths(temp.Combine("appdata"));
         paths.EnsureCreated();
         var handler = new FakeHandler(_ => throw new HttpRequestException("Connection refused"));
-        var provider = new AeroFoilLibraryProvider(TestData.Client(handler), new StaticConnectionProvider(TestData.Connection), paths,
-            NullLogger<AeroFoilLibraryProvider>.Instance);
+        var provider = TestData.Provider(handler, new StaticConnectionProvider(TestData.Connection), paths);
 
         var ex = await Assert.ThrowsAsync<AeroFoilException>(() => provider.GetCatalogAsync(default));
         Assert.True(ex.IsConnectivityFailure);
@@ -381,7 +379,7 @@ public class LibraryProviderTests
         paths.EnsureCreated();
         var connections = new StaticConnectionProvider(TestData.Connection);
         var handler = new FakeHandler(_ => FakeHandler.Json("""{"sections":[{"id":"all","title":"All","items":[]}]}"""));
-        var provider = new AeroFoilLibraryProvider(TestData.Client(handler), connections, paths, NullLogger<AeroFoilLibraryProvider>.Instance);
+        var provider = TestData.Provider(handler, connections, paths);
         await provider.GetCatalogAsync(default);
 
         connections.Connection = TestData.Connection with { BaseUri = new Uri("https://other.example.com/") };

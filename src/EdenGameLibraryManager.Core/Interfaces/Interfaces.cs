@@ -27,7 +27,7 @@ public interface IAeroFoilClient
     Task<HttpResponseMessage> SendAsync(ServerConnection connection, HttpRequestMessage request, CancellationToken cancellationToken);
 }
 
-/// <summary>A source of downloadable games. AeroFoil is the only provider in this release.</summary>
+/// <summary>The active profile's games, from an AeroFoil server or a TorBox account.</summary>
 public interface IGameLibraryProvider
 {
     string Name { get; }
@@ -36,6 +36,34 @@ public interface IGameLibraryProvider
     Task<CatalogResult> GetCatalogAsync(CancellationToken cancellationToken);
 
     Task<CatalogResult?> LoadCachedCatalogAsync(CancellationToken cancellationToken);
+
+    /// <summary>Fetches the live catalogue of <paramref name="connection"/> without caching it (used by Test Connection).</summary>
+    Task<CatalogResult> FetchCatalogAsync(ServerConnection connection, CancellationToken cancellationToken);
+}
+
+/// <summary>Turns a catalogue item into the request that fetches its file.</summary>
+public interface IDownloadLinkResolver
+{
+    /// <summary>Throws when <paramref name="item"/> cannot be downloaded from <paramref name="connection"/>.</summary>
+    void Validate(ServerConnection connection, RemoteGameItem item);
+
+    /// <summary>Called before every attempt, because TorBox download links expire.</summary>
+    Task<DownloadLink> ResolveAsync(ServerConnection connection, RemoteGameItem item, CancellationToken cancellationToken);
+}
+
+/// <summary>A local copy of titledb (names, descriptions and artwork by application id).</summary>
+public interface ITitleDatabase
+{
+    /// <summary>Raised on a background thread after a refresh replaced the local copy.</summary>
+    event EventHandler? Updated;
+
+    TitleDbStatus GetStatus();
+
+    /// <summary>Looks up several ids at once; missing ids are left out. Empty when titledb is off or not downloaded yet.</summary>
+    Task<IReadOnlyDictionary<string, TitleInfo>> LookupAsync(IEnumerable<string> ids, CancellationToken cancellationToken);
+
+    /// <summary>Downloads titledb when it is missing, older than a week, for another region, or when <paramref name="force"/> is set.</summary>
+    Task RefreshAsync(bool force, CancellationToken cancellationToken);
 }
 
 public interface IGameMetadataService

@@ -22,6 +22,8 @@ public sealed class AppPaths
     public string LegacyCredentialsFile => Path.Combine(Root, "credentials.dat");
     public string DatabaseFile => Path.Combine(Root, "library.db");
     public string CatalogCacheDirectory => Path.Combine(Root, "Catalogs");
+    /// <summary>Local copy of titledb (names, descriptions and artwork), rebuilt on refresh.</summary>
+    public string TitleDbFile => Path.Combine(Root, "titledb.db");
 
     public string CredentialsFileFor(string profileId) => Path.Combine(Root, $"credentials-{SafeName(profileId)}.dat");
 

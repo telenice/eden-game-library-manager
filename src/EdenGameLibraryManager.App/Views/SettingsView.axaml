@@ -23,9 +23,9 @@
 
         <Border Classes="section">
           <StackPanel Spacing="12">
-            <TextBlock Text="AeroFoil server profiles" Classes="h2" />
+            <TextBlock Text="Server profiles" Classes="h2" />
             <TextBlock Classes="muted small" TextWrapping="Wrap"
-                       Text="Add a profile for each AeroFoil server you use and switch between them from the sidebar. All profiles share the games directory and cache settings below." />
+                       Text="Add a profile for each AeroFoil server or TorBox account you use and switch between them from the sidebar. All profiles share the games directory and cache settings below." />
             <Grid ColumnDefinitions="*,Auto,Auto">
               <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" HorizontalAlignment="Stretch">
                 <ComboBox.ItemTemplate>
@@ -40,6 +40,24 @@
             <Panel IsVisible="{Binding HasSelectedProfile}">
               <v:ConnectionFormView DataContext="{Binding SelectedProfile}" />
             </Panel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="section">
+          <StackPanel Spacing="12">
+            <TextBlock Text="Game info and artwork" Classes="h2" />
+            <CheckBox IsChecked="{Binding UseTitleDb}" Content="Fill in names, descriptions and artwork from titledb" />
+            <TextBlock Classes="muted small" TextWrapping="Wrap"
+                       Text="titledb (github.com/blawar/titledb) is a public list of eShop details by title ID. The app downloads it once (about 25 MB), keeps a small local copy and checks for changes weekly. Artwork comes from Nintendo's image server. TorBox profiles need this for names and artwork; AeroFoil profiles use it only for details their server doesn't have." />
+            <Grid ColumnDefinitions="320,*">
+              <TextBlock Text="Region and language" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding TitleDbRegions}" SelectedItem="{Binding TitleDbRegion}" Width="160" IsEnabled="{Binding UseTitleDb}" />
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Button Content="Update now" Command="{Binding UpdateTitleDbCommand}" IsEnabled="{Binding !IsUpdatingTitleDb}" />
+              <ProgressBar IsIndeterminate="True" Width="120" IsVisible="{Binding IsUpdatingTitleDb}" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Text="{Binding TitleDbStatusText}" Classes="muted small" TextWrapping="Wrap" />
           </StackPanel>
         </Border>
 

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using EdenGameLibraryManager.App.Services;
@@ -6,6 +7,7 @@ using EdenGameLibraryManager.Core.Interfaces;
 using EdenGameLibraryManager.Core.Models;
 using EdenGameLibraryManager.Core.Services;
 using EdenGameLibraryManager.Infrastructure.Storage;
+using EdenGameLibraryManager.Infrastructure.TitleDb;
 
 namespace EdenGameLibraryManager.App.ViewModels;
 
@@ -18,7 +20,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 {
     private readonly ISettingsService _settings;
     private readonly ICredentialStore _credentials;
-    private readonly IAeroFoilClient _client;
+    private readonly IGameLibraryProvider _provider;
+    private readonly ITitleDatabase _titleDb;
     private readonly LibraryCoordinator _coordinator;
     private readonly IDialogService _dialogs;
     private readonly AppPaths _paths;
@@ -28,7 +31,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public SettingsViewModel(
         ISettingsService settings,
         ICredentialStore credentials,
-        IAeroFoilClient client,
+        IGameLibraryProvider provider,
+        ITitleDatabase titleDb,
         LibraryCoordinator coordinator,
         IDialogService dialogs,
         AppPaths paths,
@@ -37,7 +41,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _library = library;
         _settings = settings;
         _credentials = credentials;
-        _client = client;
+        _provider = provider;
+        _titleDb = titleDb;
+        _titleDb.Updated += (_, _) => Dispatcher.UIThread.Post(RefreshTitleDbStatus);
         _coordinator = coordinator;
         _dialogs = dialogs;
         _paths = paths;
@@ -53,6 +59,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
     ];
 
     public IReadOnlyList<int> ConcurrencyOptions { get; } = [1, 2, 3, 4];
+
+    public IReadOnlyList<string> TitleDbRegions => TitleDatabase.Regions;
 
     /// <summary>Server profiles being edited; changes apply when Settings are saved.</summary>
     public ObservableCollection<ConnectionFormViewModel> Profiles { get; } = [];
@@ -74,6 +82,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private decimal _refreshIntervalMinutes;
     [ObservableProperty] private decimal _speedLimitKbps;
     [ObservableProperty] private ThemeOption _selectedTheme;
+    [ObservableProperty] private bool _useTitleDb;
+    [ObservableProperty] private string _titleDbRegion = TitleDatabase.Regions[0];
+    [ObservableProperty] private string? _titleDbStatusText;
+    [ObservableProperty] private bool _isUpdatingTitleDb;
     [ObservableProperty] private string? _statusMessage;
 
     public string DataFolder => _paths.Root;
@@ -84,7 +96,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _removedProfileIds.Clear();
         Profiles.Clear();
         foreach (var profile in s.Profiles)
-            Profiles.Add(new ConnectionFormViewModel(_client, _credentials, profile));
+            Profiles.Add(new ConnectionFormViewModel(_provider, _credentials, profile));
         SelectedProfile = Profiles.FirstOrDefault(p => p.Id == s.ActiveProfile?.Id) ?? Profiles.FirstOrDefault();
 
         GamesDirectory = s.GamesDirectory;
@@ -98,7 +110,42 @@ public sealed partial class SettingsViewModel : ViewModelBase
         RefreshIntervalMinutes = s.RefreshIntervalMinutes;
         SpeedLimitKbps = s.SpeedLimitKbps;
         SelectedTheme = ThemeOptions.FirstOrDefault(t => t.Theme == s.Theme) ?? ThemeOptions[0];
+        UseTitleDb = s.UseTitleDb;
+        TitleDbRegion = TitleDatabase.NormalizeRegion(s.TitleDbRegion);
         StatusMessage = null;
+        RefreshTitleDbStatus();
+    }
+
+    private void RefreshTitleDbStatus()
+    {
+        var status = _titleDb.GetStatus();
+        var text = !status.IsAvailable
+            ? "Not downloaded yet."
+            : $"{status.TitleCount:N0} titles ({status.Region}), updated {status.UpdatedAt?.LocalDateTime.ToString("g") ?? "unknown"}.";
+        if (status.LastError is { } error) text += $" Last update failed: {error}";
+        TitleDbStatusText = text;
+    }
+
+    /// <summary>Downloads titledb now with the saved region (save first to switch region).</summary>
+    [RelayCommand]
+    private async Task UpdateTitleDbAsync()
+    {
+        if (!_settings.Current.UseTitleDb)
+        {
+            TitleDbStatusText = "Turn titledb on and save settings first.";
+            return;
+        }
+        IsUpdatingTitleDb = true;
+        TitleDbStatusText = "Downloading titledb (about 25 MB)…";
+        try
+        {
+            await Task.Run(() => _titleDb.RefreshAsync(force: true, CancellationToken.None));
+        }
+        finally
+        {
+            IsUpdatingTitleDb = false;
+            RefreshTitleDbStatus();
+        }
     }
 
     partial void OnSelectedThemeChanged(ThemeOption value) => App.ApplyTheme(value.Theme);
@@ -106,7 +153,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void AddProfile()
     {
-        var profile = new ConnectionFormViewModel(_client, _credentials, new ServerProfile { Id = ServerProfile.NewId(), Name = "New server" });
+        var profile = new ConnectionFormViewModel(_provider, _credentials, new ServerProfile { Id = ServerProfile.NewId() });
         Profiles.Add(profile);
         SelectedProfile = profile;
         StatusMessage = "Fill in the new server, then save.";
@@ -226,7 +273,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         if (Profiles.Count == 0)
         {
-            StatusMessage = "Add at least one AeroFoil server.";
+            StatusMessage = "Add at least one AeroFoil server or TorBox account.";
             return;
         }
 
@@ -265,6 +312,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
             RefreshIntervalMinutes = (int)RefreshIntervalMinutes,
             SpeedLimitKbps = (int)SpeedLimitKbps,
             Theme = SelectedTheme.Theme,
+            UseTitleDb = UseTitleDb,
+            TitleDbRegion = TitleDbRegion,
         };
 
         try
@@ -295,5 +344,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
         else
             _coordinator.Recompute();
         if (serverChanged) await _coordinator.SwitchProfileAsync();
+
+        if (updated.UseTitleDb && (!old.UseTitleDb || old.TitleDbRegion != updated.TitleDbRegion))
+            _ = _coordinator.RefreshTitleDbAsync(force: false);
+        else if (old.UseTitleDb != updated.UseTitleDb)
+            await _coordinator.RefreshCatalogAsync();
     }
 }

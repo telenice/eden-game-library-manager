@@ -2,6 +2,7 @@
   "profiles": [
     {
       "id": "default",
+      "kind": "AeroFoil",
       "name": "Home server",
       "serverUrl": "https://aerofoil.example.com/",
       "username": "alice",
@@ -10,9 +11,19 @@
     },
     {
       "id": "3f9c2a71b0de",
+      "kind": "AeroFoil",
       "name": "Friend's server",
       "serverUrl": "https://games.example.net/",
       "username": "alice",
+      "rememberPassword": true,
+      "allowInsecureHttp": false
+    },
+    {
+      "id": "8b41d0c6e2fa",
+      "kind": "TorBox",
+      "name": "TorBox",
+      "serverUrl": "",
+      "username": "",
       "rememberPassword": true,
       "allowInsecureHttp": false
     }
@@ -26,6 +37,8 @@
   "autoRefreshOnStartup": true,
   "refreshIntervalMinutes": 30,
   "speedLimitKbps": 0,
+  "useTitleDb": true,
+  "titleDbRegion": "US.en",
   "theme": "Dark",
   "viewMode": "Grid",
   "groupByGame": false,

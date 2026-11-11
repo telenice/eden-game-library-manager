@@ -3,6 +3,10 @@ using System.Text;
 using EdenGameLibraryManager.Core.Interfaces;
 using EdenGameLibraryManager.Core.Models;
 using EdenGameLibraryManager.Infrastructure.AeroFoil;
+using EdenGameLibraryManager.Infrastructure.Downloads;
+using EdenGameLibraryManager.Infrastructure.Library;
+using EdenGameLibraryManager.Infrastructure.Storage;
+using EdenGameLibraryManager.Infrastructure.TorBox;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EdenGameLibraryManager.Tests;
@@ -31,6 +35,14 @@ internal static class TestData
 
     public static AeroFoilClient Client(FakeHandler handler) =>
         new(new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan }, NullLogger<AeroFoilClient>.Instance);
+
+    public static TorBoxClient TorBox(FakeHandler handler) =>
+        new(new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan }, NullLogger<TorBoxClient>.Instance);
+
+    public static DownloadLinkResolver Links(FakeHandler handler) => new(TorBox(handler));
+
+    public static ServerLibraryProvider Provider(FakeHandler handler, IConnectionProvider connections, AppPaths paths, ITitleDatabase? titles = null) =>
+        new(Client(handler), TorBox(handler), titles ?? new FakeTitleDatabase(), connections, paths, NullLogger<ServerLibraryProvider>.Instance);
 
     public static RemoteGameItem Item(
         string name, string appId, ContentType type, string version = "0", long size = 1000, long? fileId = 1, string? filename = null) => new()
@@ -93,6 +105,22 @@ internal sealed class StaticConnectionProvider(ServerConnection? connection) : I
 {
     public ServerConnection? Connection { get; set; } = connection;
     public ServerConnection? GetConnection() => Connection;
+}
+
+internal sealed class FakeTitleDatabase(params TitleInfo[] titles) : ITitleDatabase
+{
+    public event EventHandler? Updated { add { } remove { } }
+
+    public TitleDbStatus GetStatus() => new(titles.Length > 0, "US.en", titles.Length, DateTimeOffset.UtcNow, null);
+
+    public Task<IReadOnlyDictionary<string, TitleInfo>> LookupAsync(IEnumerable<string> ids, CancellationToken cancellationToken)
+    {
+        var wanted = ids.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        IReadOnlyDictionary<string, TitleInfo> found = titles.Where(t => wanted.Contains(t.Id)).ToDictionary(t => t.Id, StringComparer.OrdinalIgnoreCase);
+        return Task.FromResult(found);
+    }
+
+    public Task RefreshAsync(bool force, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 internal sealed class InMemorySettings(AppSettings settings) : ISettingsService

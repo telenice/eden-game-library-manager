@@ -11,10 +11,13 @@ using EdenGameLibraryManager.Core.Interfaces;
 using EdenGameLibraryManager.Core.Models;
 using EdenGameLibraryManager.Infrastructure.AeroFoil;
 using EdenGameLibraryManager.Infrastructure.Downloads;
+using EdenGameLibraryManager.Infrastructure.Library;
 using EdenGameLibraryManager.Infrastructure.Logging;
 using EdenGameLibraryManager.Infrastructure.Persistence;
 using EdenGameLibraryManager.Infrastructure.Security;
 using EdenGameLibraryManager.Infrastructure.Storage;
+using EdenGameLibraryManager.Infrastructure.TitleDb;
+using EdenGameLibraryManager.Infrastructure.TorBox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -92,8 +95,11 @@ public partial class App : Application
             return http;
         });
         services.AddSingleton<IAeroFoilClient, AeroFoilClient>();
-        services.AddSingleton<IGameLibraryProvider, AeroFoilLibraryProvider>();
+        services.AddSingleton<TorBoxClient>();
+        services.AddSingleton<ITitleDatabase, TitleDatabase>();
+        services.AddSingleton<IGameLibraryProvider, ServerLibraryProvider>();
         services.AddSingleton<IGameMetadataService, GameMetadataService>();
+        services.AddSingleton<IDownloadLinkResolver, DownloadLinkResolver>();
 
         services.AddSingleton<IManifestService>(sp => new ManifestService(paths.DatabaseFile, sp.GetRequiredService<ILogger<ManifestService>>()));
         services.AddSingleton<ILocalLibraryService, LocalLibraryService>();

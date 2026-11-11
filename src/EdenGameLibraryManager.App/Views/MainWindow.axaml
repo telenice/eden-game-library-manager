@@ -37,7 +37,7 @@
           <StackPanel DockPanel.Dock="Top" Margin="0,0,0,20" Spacing="4">
             <TextBlock Text="Server" Classes="label" Margin="4,0,0,0" />
             <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding ActiveProfile}" HorizontalAlignment="Stretch"
-                      IsEnabled="{Binding HasMultipleProfiles}" ToolTip.Tip="Switch AeroFoil server profile (add more in Settings)">
+                      IsEnabled="{Binding HasMultipleProfiles}" ToolTip.Tip="Switch server profile (add more in Settings)">
               <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="m:ServerProfile">
                   <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />

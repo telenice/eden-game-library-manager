@@ -16,6 +16,7 @@ public sealed class DownloadManager : IDownloadManager
     private const long DiskSafetyMarginBytes = 64L * 1024 * 1024;
 
     private readonly HttpDownloader _downloader;
+    private readonly IDownloadLinkResolver _links;
     private readonly IConnectionProvider _connections;
     private readonly IManifestService _manifest;
     private readonly ICacheManager _cache;
@@ -32,6 +33,7 @@ public sealed class DownloadManager : IDownloadManager
 
     public DownloadManager(
         HttpDownloader downloader,
+        IDownloadLinkResolver links,
         IConnectionProvider connections,
         IManifestService manifest,
         ICacheManager cache,
@@ -42,6 +44,7 @@ public sealed class DownloadManager : IDownloadManager
         ILogger<DownloadManager> logger)
     {
         _downloader = downloader;
+        _links = links;
         _connections = connections;
         _manifest = manifest;
         _cache = cache;
@@ -119,10 +122,10 @@ public sealed class DownloadManager : IDownloadManager
     public DownloadTask Enqueue(RemoteGameItem item)
     {
         var connection = _connections.GetConnection()
-                         ?? throw new AeroFoilException(AeroFoilErrorKind.NotConfigured, "Connect to an AeroFoil server first.");
+                         ?? throw new AeroFoilException(AeroFoilErrorKind.NotConfigured, "Connect to an AeroFoil server or TorBox account first.");
 
         // Validate up front so obviously unsafe catalogue entries fail immediately.
-        UrlPolicy.ResolveTrusted(connection.BaseUri, item.Url);
+        _links.Validate(connection, item);
         PathSafety.SanitizeGameFileName(item.SourceFileName);
 
         DownloadTask task;
@@ -292,12 +295,12 @@ public sealed class DownloadManager : IDownloadManager
         try
         {
             var connection = _connections.GetConnection()
-                             ?? throw new AeroFoilException(AeroFoilErrorKind.NotConfigured, "Not connected to an AeroFoil server.");
+                             ?? throw new AeroFoilException(AeroFoilErrorKind.NotConfigured, "Not connected to an AeroFoil server or TorBox account.");
             if (!string.Equals(connection.ServerKey, task.ServerKey, StringComparison.OrdinalIgnoreCase))
                 throw new AeroFoilException(AeroFoilErrorKind.AccessDenied,
-                    "This download belongs to a different AeroFoil server than the one currently configured.");
+                    "This download belongs to a different server profile than the one currently configured.");
 
-            var uri = UrlPolicy.ResolveTrusted(connection.BaseUri, task.Item.Url);
+            _links.Validate(connection, task.Item);
             var fileName = PathSafety.SanitizeGameFileName(task.Item.SourceFileName);
             var gamesDirectory = _settings.Current.GamesDirectory;
             if (string.IsNullOrWhiteSpace(gamesDirectory))
@@ -311,8 +314,10 @@ public sealed class DownloadManager : IDownloadManager
             {
                 try
                 {
+                    // Resolved per attempt: TorBox links expire, so a retry needs a fresh one.
+                    var link = await _links.ResolveAsync(connection, task.Item, token);
                     result = await _downloader.DownloadAsync(
-                        new DownloadRequest(connection, uri, task.PartialPath, task.Item.Size, task.ETag, task.LastModified),
+                        new DownloadRequest(link.Connection, link.Uri, task.PartialPath, task.Item.Size, task.ETag, task.LastModified),
                         (etag, lastModified, total) =>
                         {
                             task.ETag = etag;

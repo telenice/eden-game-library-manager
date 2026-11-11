@@ -35,6 +35,14 @@ public static class UrlPolicy
         return builder.Uri;
     }
 
+    /// <summary>Hosts that serve titledb artwork. Images from these are fetched without any credentials.</summary>
+    public static readonly IReadOnlyList<string> PublicArtworkHosts = ["img-eshop.cdn.nintendo.net"];
+
+    public static bool IsPublicArtworkUrl(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps &&
+        string.IsNullOrEmpty(uri.UserInfo) && uri.IsDefaultPort &&
+        PublicArtworkHosts.Contains(uri.IdnHost, StringComparer.OrdinalIgnoreCase);
+
     public static bool IsSameOrigin(Uri a, Uri b) =>
         a.IsAbsoluteUri && b.IsAbsoluteUri &&
         string.Equals(a.Scheme, b.Scheme, StringComparison.OrdinalIgnoreCase) &&
