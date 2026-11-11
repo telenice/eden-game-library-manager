@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <!-- AssemblyVersion/FileVersion are derived from Version; release builds override it from the git tag. -->
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
     <Company>Eden Game Library Manager</Company>
     <Product>Eden Game Library Manager</Product>
     <Copyright>Copyright (c) 2026</Copyright>
