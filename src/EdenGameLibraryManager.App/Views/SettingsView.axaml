@@ -84,12 +84,15 @@
         <Border Classes="section">
           <StackPanel Spacing="12">
             <TextBlock Text="Storage" Classes="h2" />
-            <Grid ColumnDefinitions="320,*" RowDefinitions="Auto,Auto">
-              <TextBlock Text="Maximum storage for downloads (GB, 0 = unlimited)" VerticalAlignment="Center" />
-              <NumericUpDown Grid.Column="1" Value="{Binding CacheLimitGb}" Minimum="0" Maximum="100000" Increment="10" FormatString="0.#" Width="160" HorizontalAlignment="Left" />
+            <Grid ColumnDefinitions="320,*">
+              <TextBlock Text="Maximum storage for downloads" VerticalAlignment="Center" TextWrapping="Wrap" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <NumericUpDown Value="{Binding CacheLimitGb}" Minimum="0" Maximum="100000" Increment="10" FormatString="0.#" Width="160" />
+                <TextBlock Text="GB" VerticalAlignment="Center" />
+              </StackPanel>
             </Grid>
             <TextBlock Classes="muted small" TextWrapping="Wrap"
-                       Text="Counts games this app downloaded, plus downloads in progress. Files you added yourself don't count. When a download won't fit, you choose which games to remove; nothing is deleted automatically, and Eden saves are never touched." />
+                       Text="0 means unlimited. Counts games this app downloaded, plus downloads in progress. Files you added yourself don't count. When a download won't fit, you choose which games to remove; nothing is deleted automatically, and Eden saves are never touched." />
           </StackPanel>
         </Border>
 
