@@ -151,7 +151,16 @@ public sealed partial class SettingsViewModel : ViewModelBase
         }
     }
 
-    partial void OnSelectedThemeChanged(ThemeOption value) => App.ApplyTheme(value.Theme);
+    /// <summary>
+    /// The theme applies the moment it's picked, so it's saved straight away too; otherwise reopening
+    /// Settings (which reloads saved values) would switch it back. Other unsaved edits are left alone.
+    /// </summary>
+    partial void OnSelectedThemeChanged(ThemeOption value)
+    {
+        App.ApplyTheme(value.Theme);
+        if (value.Theme != _settings.Current.Theme)
+            _ = _settings.SaveAsync(_settings.Current with { Theme = value.Theme });
+    }
 
     [RelayCommand]
     private void AddProfile()
