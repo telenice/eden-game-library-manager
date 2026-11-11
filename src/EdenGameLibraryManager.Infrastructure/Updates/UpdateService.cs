@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
 using System.Net.Http.Headers;
@@ -16,13 +17,20 @@ namespace EdenGameLibraryManager.Infrastructure.Updates;
 /// Self-update from GitHub Releases. The latest release (drafts and pre-releases excluded) is read
 /// from the public API; on Windows the matching <c>-win-x64.zip</c>/<c>-win-arm64.zip</c> is downloaded
 /// with its <c>.sig</c>, which must be an ECDSA P-256 / SHA-256 signature by the release key whose
-/// public half is embedded in this assembly. Only this app's own executable is replaced: the running
-/// file is renamed to <c>.old</c> (Windows allows renaming a running exe) and the new one moved into
-/// place. Nothing else in the folder is touched, so an exe kept next to Eden's own files is safe.
+/// public half is embedded in this assembly.
+/// <para>
+/// The running executable is never changed while it runs: a single-file app loads parts of itself from
+/// its own file on demand, so replacing that file underneath it breaks it. Instead the new executable
+/// is staged in the app data folder and, after this process exits, started with
+/// <see cref="FinishUpdateArgument"/>: it waits for the old process to end, renames the old executable
+/// to <c>.old</c>, copies itself into place and starts from there. Only this app's own executable is
+/// replaced, so an exe kept next to Eden's own files is safe.
+/// </para>
 /// </summary>
 public sealed class UpdateService : IUpdateService
 {
     public const string Repository = "telenice/eden-game-library-manager";
+    public const string FinishUpdateArgument = "--finish-update";
     private const string ExecutableName = "EdenGameLibraryManager.exe";
     private const long MaxPackageBytes = 512L * 1024 * 1024;
     private const long MaxSignatureBytes = 4096;
@@ -162,7 +170,7 @@ public sealed class UpdateService : IUpdateService
         return new Version(v.Major, v.Minor, Math.Max(0, v.Build));
     }
 
-    public async Task<string> InstallAsync(AppUpdate update, IProgress<double>? progress, CancellationToken cancellationToken)
+    public async Task<UpdateRestart> InstallAsync(AppUpdate update, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         if (!CanInstallInPlace)
             throw new UpdateException("This copy of the app can't update itself. Download the new version from the release page.");
@@ -175,6 +183,7 @@ public sealed class UpdateService : IUpdateService
         Directory.CreateDirectory(work);
         var package = Path.Combine(work, "package.zip");
         var staged = Path.Combine(work, ExecutableName);
+        var staging = false;
 
         try
         {
@@ -186,9 +195,10 @@ public sealed class UpdateService : IUpdateService
                 throw new UpdateException("The downloaded update's signature doesn't match the release key, so it was not installed.");
 
             ExtractExecutable(package, staged);
-            Swap(exe, staged);
-            _logger.LogInformation("Update {Version} installed; restart pending", update.Version);
-            return exe;
+            File.Delete(package);
+            staging = true;
+            _logger.LogInformation("Update {Version} staged; it replaces {Exe} once the app has closed", update.Version, exe);
+            return new UpdateRestart(staged, [FinishUpdateArgument, exe, Environment.ProcessId.ToString(CultureInfo.InvariantCulture)]);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or HttpRequestException)
         {
@@ -200,29 +210,109 @@ public sealed class UpdateService : IUpdateService
         }
         finally
         {
-            TryDeleteDirectory(work);
+            if (!staging) TryDeleteDirectory(work);
         }
     }
 
     public Task CleanUpAsync() => Task.Run(async () =>
     {
-        TryDeleteDirectory(Path.Combine(_paths.Root, "Updates"));
-        if (ExecutablePath is not { } exe) return;
-        var old = exe + ".old";
-        // The previous process may still be exiting and holding the file; give it a little time.
-        for (var attempt = 0; attempt < 10 && File.Exists(old); attempt++)
+        var work = Path.Combine(_paths.Root, "Updates");
+        var old = ExecutablePath is { } exe ? exe + ".old" : null;
+        // The finishing step may still be exiting from the Updates folder; give it a little time.
+        for (var attempt = 0; attempt < 10 && (Directory.Exists(work) || (old is not null && File.Exists(old))); attempt++)
         {
+            if (attempt > 0) await Task.Delay(TimeSpan.FromSeconds(3));
+            TryDeleteDirectory(work);
             try
             {
-                File.Delete(old);
-                _logger.LogInformation("Removed the previous version's executable");
+                if (old is not null && File.Exists(old))
+                {
+                    File.Delete(old);
+                    _logger.LogInformation("Removed the previous version's executable");
+                }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                await Task.Delay(TimeSpan.FromSeconds(3));
             }
         }
     });
+
+    /// <summary>
+    /// Handles <c>--finish-update &lt;target exe&gt; &lt;old process id&gt;</c> before the UI starts. Runs from the
+    /// staged executable: waits for the old process to exit, replaces the target with itself (keeping the
+    /// old file as <c>.old</c>, or putting it back if anything fails) and starts the target. Returns false
+    /// for any other command line.
+    /// </summary>
+    public static bool TryFinishUpdate(string[] args, string logDirectory)
+    {
+        if (args.Length < 3 || args[0] != FinishUpdateArgument) return false;
+        var target = args[1];
+
+        void Log(string message)
+        {
+            try
+            {
+                Directory.CreateDirectory(logDirectory);
+                File.AppendAllText(Path.Combine(logDirectory, "update.log"), $"{DateTimeOffset.Now:O} {message}{Environment.NewLine}");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+
+        var source = Environment.ProcessPath;
+        if (source is null || !Path.IsPathFullyQualified(target) || !target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            Log($"Ignored an invalid update target: {target}");
+            return true;
+        }
+
+        if (int.TryParse(args[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var pid)) WaitForExit(pid);
+
+        // The old process can keep its file locked for a moment after exiting.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                ReplaceExecutable(source, target);
+                Log($"Updated {target}");
+                break;
+            }
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < 20)
+            {
+                Thread.Sleep(500);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log($"Could not replace {target}: {ex.Message}. Starting the previous version.");
+                break;
+            }
+        }
+
+        try
+        {
+            if (File.Exists(target))
+                Process.Start(new ProcessStartInfo(target) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(target)! })?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log($"Could not start {target}: {ex.Message}");
+        }
+        return true;
+    }
+
+    private static void WaitForExit(int pid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            process.WaitForExit(TimeSpan.FromSeconds(60));
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            // Already gone.
+        }
+    }
 
     internal bool VerifySignature(string file, byte[] signature)
     {
@@ -256,20 +346,34 @@ public sealed class UpdateService : IUpdateService
         entries[0].ExtractToFile(destination, overwrite: true);
     }
 
-    /// <summary>Renames the running exe to ".old" and moves the new one into place, undoing the rename on failure.</summary>
-    internal static void Swap(string exe, string staged)
+    /// <summary>
+    /// Copies <paramref name="source"/> next to <paramref name="target"/> first, then renames the target to
+    /// ".old" and moves the copy into place, so a failed copy never leaves a broken target behind and a
+    /// failed move puts the old file back.
+    /// </summary>
+    internal static void ReplaceExecutable(string source, string target)
     {
-        var old = exe + ".old";
-        if (File.Exists(old)) File.Delete(old);
-        File.Move(exe, old);
+        var incoming = target + ".new";
+        var old = target + ".old";
+        File.Copy(source, incoming, overwrite: true);
         try
         {
-            File.Move(staged, exe);
+            if (File.Exists(old)) File.Delete(old);
+            var hadTarget = File.Exists(target);
+            if (hadTarget) File.Move(target, old);
+            try
+            {
+                File.Move(incoming, target);
+            }
+            catch
+            {
+                if (hadTarget) File.Move(old, target);
+                throw;
+            }
         }
-        catch
+        finally
         {
-            File.Move(old, exe);
-            throw;
+            if (File.Exists(incoming)) File.Delete(incoming);
         }
     }
 

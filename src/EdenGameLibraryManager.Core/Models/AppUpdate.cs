@@ -20,4 +20,7 @@ public sealed record AppUpdate
     public bool CanInstallAutomatically => PackageUrl is not null && SignatureUrl is not null;
 }
 
+/// <summary>The program to start once this process has exited, which finishes installing the update.</summary>
+public sealed record UpdateRestart(string Executable, IReadOnlyList<string> Arguments);
+
 public sealed class UpdateException(string message, Exception? inner = null) : Exception(message, inner);

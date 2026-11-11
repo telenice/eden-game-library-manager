@@ -271,11 +271,16 @@ On Windows, **Update now**:
 2. checks the signature against the release public key built into the app
    (`src/EdenGameLibraryManager.Infrastructure/Updates/update-signing-public-key.pem`), and stops if
    it doesn't match, so a replaced file on GitHub can't be installed;
-3. takes only `EdenGameLibraryManager.exe` from the zip, renames the running exe to
-   `EdenGameLibraryManager.exe.old` and moves the new one into place. Nothing else in the folder is
-   touched, so keeping the app next to Eden's own files is safe;
-4. closes the app the normal way (active downloads pause), starts the new version, which deletes the
-   `.old` file and resumes downloads.
+3. takes only `EdenGameLibraryManager.exe` from the zip and stages it in the app data folder
+   (`Updates\`). The running exe is never changed while it runs: a single-file app reads parts of
+   itself from its own file on demand;
+4. closes the app the normal way (active downloads pause) and starts the staged exe with
+   `--finish-update`. It waits for the old process to exit, renames the old exe to
+   `EdenGameLibraryManager.exe.old`, copies itself into place and starts from there. If that fails,
+   the old exe is put back and started instead. Nothing else in the folder is touched, so keeping the
+   app next to Eden's own files is safe;
+5. on its next start the app deletes the `.old` file and the staged copy, and resumes downloads.
+   The finishing step writes to `Logs\update.log` in the app data folder.
 
 Settings, passwords, the library database and caches live in the app data folder, so updates keep
 them. If any step fails, the current version keeps running unchanged. Files the app downloads itself

@@ -157,10 +157,11 @@ public interface IUpdateService
     Task<AppUpdate?> CheckAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Downloads the package, verifies its signature and swaps in the new executable. Returns the path
-    /// to start once this process has exited. Nothing is changed if any step fails.
+    /// Downloads the package, verifies its signature and stages the new executable in the app data
+    /// folder. The running executable is not touched. Start the returned program once this process has
+    /// exited: it replaces the old executable and launches the new version.
     /// </summary>
-    Task<string> InstallAsync(AppUpdate update, IProgress<double>? progress, CancellationToken cancellationToken);
+    Task<UpdateRestart> InstallAsync(AppUpdate update, IProgress<double>? progress, CancellationToken cancellationToken);
 
     /// <summary>Removes the previous executable and downloaded packages left by an earlier update.</summary>
     Task CleanUpAsync();

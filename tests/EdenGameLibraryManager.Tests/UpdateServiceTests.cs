@@ -128,7 +128,7 @@ public class UpdateServiceTests
     }
 
     [Fact]
-    public async Task Install_replaces_only_this_apps_exe_after_checking_the_signature()
+    public async Task Install_stages_the_signed_exe_without_touching_the_running_one()
     {
         using var temp = new TempDirectory();
         var package = Package(Encoding.UTF8.GetBytes("new app"));
@@ -138,16 +138,48 @@ public class UpdateServiceTests
         var progress = new List<double>();
         var restart = await service.InstallAsync(update, new SyncProgress(progress.Add), default);
 
-        Assert.Equal(exe, restart);
+        // The running exe and its folder are untouched until this process has exited.
+        Assert.Equal("old app", await File.ReadAllTextAsync(exe));
+        Assert.Equal(["EdenGameLibraryManager.exe", "eden.exe"], Directory.GetFiles(folder).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.Equal(temp.Combine("appdata", "Updates", "EdenGameLibraryManager.exe"), restart.Executable);
+        Assert.Equal("new app", await File.ReadAllTextAsync(restart.Executable));
+        Assert.Equal([UpdateService.FinishUpdateArgument, exe, Environment.ProcessId.ToString()], restart.Arguments);
+        Assert.Equal(["EdenGameLibraryManager.exe"], Directory.GetFiles(temp.Combine("appdata", "Updates")).Select(Path.GetFileName));
+        Assert.Equal(1.0, progress.Last());
+
+        // What the staged exe does once started with --finish-update.
+        UpdateService.ReplaceExecutable(restart.Executable, exe);
         Assert.Equal("new app", await File.ReadAllTextAsync(exe));
         Assert.Equal("old app", await File.ReadAllTextAsync(exe + ".old"));
         Assert.Equal("the emulator", await File.ReadAllTextAsync(Path.Combine(folder, "eden.exe")));
-        Assert.False(File.Exists(Path.Combine(folder, "README.txt")));
-        Assert.Equal(1.0, progress.Last());
-        Assert.False(Directory.Exists(temp.Combine("appdata", "Updates")));
+        Assert.False(File.Exists(exe + ".new"));
 
         await service.CleanUpAsync();
         Assert.False(File.Exists(exe + ".old"));
+        Assert.False(Directory.Exists(temp.Combine("appdata", "Updates")));
+    }
+
+    [Fact]
+    public void Failed_replacement_leaves_the_current_exe_in_place()
+    {
+        using var temp = new TempDirectory();
+        var exe = temp.Combine("EdenGameLibraryManager.exe");
+        File.WriteAllText(exe, "current");
+
+        Assert.ThrowsAny<IOException>(() => UpdateService.ReplaceExecutable(temp.Combine("missing.exe"), exe));
+
+        Assert.Equal("current", File.ReadAllText(exe));
+        Assert.False(File.Exists(exe + ".old"));
+        Assert.False(File.Exists(exe + ".new"));
+    }
+
+    [Theory]
+    [InlineData]
+    [InlineData("--something-else", "C:\\x.exe", "1")]
+    public void Normal_command_lines_are_not_treated_as_finishing_an_update(params string[] args)
+    {
+        using var temp = new TempDirectory();
+        Assert.False(UpdateService.TryFinishUpdate(args, temp.Path));
     }
 
     [Fact]
@@ -163,6 +195,7 @@ public class UpdateServiceTests
         Assert.Contains("signature", ex.Message);
         Assert.Equal("old app", await File.ReadAllTextAsync(exe));
         Assert.False(File.Exists(exe + ".old"));
+        Assert.False(Directory.Exists(temp.Combine("appdata", "Updates")));
     }
 
     [Fact]

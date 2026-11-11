@@ -28,7 +28,7 @@ public partial class App : Application
 {
     private ServiceProvider? _services;
     private bool _shutdownComplete;
-    private string? _restartExecutable;
+    private UpdateRestart? _restart;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -51,9 +51,9 @@ public partial class App : Application
             _services.GetRequiredService<DialogService>().Owner = window;
             window.Opened += async (_, _) => await viewModel.StartAsync();
             // An installed update closes the app the normal way (pausing downloads), then starts the new exe.
-            viewModel.Updates.RestartRequested += (_, exe) =>
+            viewModel.Updates.RestartRequested += (_, restart) =>
             {
-                _restartExecutable = exe;
+                _restart = restart;
                 window.Close();
             };
             window.Closing += async (_, e) =>
@@ -64,7 +64,7 @@ public partial class App : Application
                 await viewModel.ShutdownAsync();
                 _shutdownComplete = true;
                 _services.Dispose();
-                if (_restartExecutable is { } exe) StartUpdatedApp(exe, logger);
+                if (_restart is { } restart) StartUpdatedApp(restart, logger);
                 window.Close();
             };
             desktop.MainWindow = window;
@@ -73,15 +73,18 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static void StartUpdatedApp(string exe, ILogger logger)
+    /// <summary>Starts the staged update, which waits for this process to exit before replacing its executable.</summary>
+    private static void StartUpdatedApp(UpdateRestart restart, ILogger logger)
     {
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
+            var start = new System.Diagnostics.ProcessStartInfo(restart.Executable)
             {
                 UseShellExecute = false,
-                WorkingDirectory = Path.GetDirectoryName(exe)!,
-            })?.Dispose();
+                WorkingDirectory = Path.GetDirectoryName(restart.Executable)!,
+            };
+            foreach (var argument in restart.Arguments) start.ArgumentList.Add(argument);
+            System.Diagnostics.Process.Start(start)?.Dispose();
         }
         catch (Exception ex)
         {

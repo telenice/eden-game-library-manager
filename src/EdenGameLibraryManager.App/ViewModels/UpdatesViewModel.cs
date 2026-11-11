@@ -26,8 +26,8 @@ public sealed partial class UpdatesViewModel : ViewModelBase
         _logger = logger;
     }
 
-    /// <summary>Raised on the UI thread with the executable to start once the app has closed.</summary>
-    public event EventHandler<string>? RestartRequested;
+    /// <summary>Raised on the UI thread with the program to start once the app has closed.</summary>
+    public event EventHandler<UpdateRestart>? RestartRequested;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowBanner), nameof(BannerText), nameof(CanInstall), nameof(HasUpdate), nameof(ReleaseButtonText))]
@@ -59,12 +59,24 @@ public sealed partial class UpdatesViewModel : ViewModelBase
     /// <summary>"What's new" when the app can install the update itself, otherwise "Download" (macOS, Linux, development builds).</summary>
     public string ReleaseButtonText => CanInstall ? "What's new" : "Download";
 
+    /// <summary>Removes what a finished update left behind (the previous .exe and the staged copy).</summary>
+    public async Task CleanUpAsync()
+    {
+        try
+        {
+            await _updates.CleanUpAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation("Update clean-up skipped: {Error}", ex.Message);
+        }
+    }
+
     /// <summary>Quiet check at startup: failures are only logged.</summary>
     public async Task CheckOnStartupAsync()
     {
         try
         {
-            await _updates.CleanUpAsync();
             await CheckCoreAsync(quiet: true);
         }
         catch (Exception ex)
@@ -127,9 +139,9 @@ public sealed partial class UpdatesViewModel : ViewModelBase
         try
         {
             var progress = new Progress<double>(p => ProgressPercent = p * 100);
-            var exe = await Task.Run(() => _updates.InstallAsync(update, progress, CancellationToken.None));
+            var restart = await Task.Run(() => _updates.InstallAsync(update, progress, CancellationToken.None));
             StatusText = "Restarting…";
-            RestartRequested?.Invoke(this, exe);
+            RestartRequested?.Invoke(this, restart);
         }
         catch (UpdateException ex)
         {

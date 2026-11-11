@@ -173,6 +173,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             StartupError = $"Startup problem: {ex.Message}";
         }
         ConfigureRefreshTimer();
+        _ = Updates.CleanUpAsync();
         if (_settings.Current.CheckForUpdates) _ = Updates.CheckOnStartupAsync();
     }
 
