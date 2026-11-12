@@ -45,7 +45,7 @@ public sealed partial class TorBoxClient(HttpClient http, ILogger<TorBoxClient> 
     /// Minimum time between download-link requests. A queue of small files (e.g. a game's 100 DLC)
     /// otherwise asks TorBox for a new link every second or so, which TorBox refuses.
     /// </summary>
-    internal TimeSpan LinkRequestSpacing { get; set; } = TimeSpan.FromSeconds(5);
+    internal TimeSpan LinkRequestSpacing { get; set; } = TimeSpan.FromSeconds(1);
 
     private readonly SemaphoreSlim _linkGate = new(1, 1);
     private readonly Stopwatch _clock = Stopwatch.StartNew();

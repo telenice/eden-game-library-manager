@@ -263,6 +263,26 @@ public partial class DownloadManagerTests
     }
 
     [Fact]
+    public async Task TorBox_slow_down_is_retried_six_times_before_failing()
+    {
+        using var temp = new TempDirectory();
+        var linkRequests = 0;
+        var h = await CreateAsync(temp, _ =>
+        {
+            Interlocked.Increment(ref linkRequests);
+            return FakeHandler.Json("""{"success":false,"detail":""}""", HttpStatusCode.TooManyRequests);
+        });
+        h.Manager.SlowDownBackoff = _ => TimeSpan.FromMilliseconds(10);
+        h.Connections.Connection = TorBoxClient.ConnectionFor("tb-key-123");
+
+        var task = h.Manager.Enqueue(TorBoxItem());
+        await WaitForAsync(h.Manager, task.Id, s => s.IsTerminal());
+
+        Assert.Equal(DownloadStatus.Failed, task.Status);
+        Assert.Equal(7, linkRequests);
+    }
+
+    [Fact]
     public async Task AeroFoil_bad_request_is_not_retried()
     {
         using var temp = new TempDirectory();

@@ -65,8 +65,11 @@ public sealed class DownloadManager : IDownloadManager
     internal int MaxAttempts { get; set; } = 6;
     internal Func<int, TimeSpan> Backoff { get; set; } = attempt => TimeSpan.FromSeconds(Math.Min(60, 2 * Math.Pow(2, attempt - 1)));
 
-    /// <summary>Longer waits when TorBox asks us to slow down: 30s, 60s, 90s… (capped at 5 minutes).</summary>
-    internal Func<int, TimeSpan> SlowDownBackoff { get; set; } = attempt => TimeSpan.FromSeconds(Math.Min(300, 30 * attempt));
+    /// <summary>Wait before retrying when TorBox asks us to slow down.</summary>
+    internal Func<int, TimeSpan> SlowDownBackoff { get; set; } = _ => TimeSpan.FromSeconds(10);
+
+    /// <summary>Retries after a TorBox slow-down answer before the download fails (attempts = retries + 1).</summary>
+    internal int SlowDownRetries { get; set; } = 6;
 
     public event EventHandler<DownloadTask>? TaskCompleted;
     public event EventHandler? TasksChanged;
@@ -332,12 +335,14 @@ public sealed class DownloadManager : IDownloadManager
                         token);
                     break;
                 }
-                catch (Exception ex) when ((IsTransient(ex) || IsTorBoxSlowDown(ex, connection)) && attempt < MaxAttempts && !token.IsCancellationRequested)
+                catch (Exception ex) when ((IsTransient(ex) || IsTorBoxSlowDown(ex, connection)) &&
+                                           attempt < AttemptsFor(ex, connection) && !token.IsCancellationRequested)
                 {
-                    var delay = IsTorBoxSlowDown(ex, connection) ? SlowDownBackoff(attempt) : Backoff(attempt);
+                    var slowDown = IsTorBoxSlowDown(ex, connection);
+                    var delay = slowDown ? SlowDownBackoff(attempt) : Backoff(attempt);
                     _logger.LogWarning("Download {Name} attempt {Attempt} failed: {Error}. Retrying in {Delay}s",
                         task.Item.Name, attempt, ex.Message, delay.TotalSeconds);
-                    task.Message = $"{ex.Message} Retrying in {delay.TotalSeconds:0}s (attempt {attempt + 1} of {MaxAttempts}).";
+                    task.Message = $"{ex.Message} Retrying in {delay.TotalSeconds:0}s (attempt {attempt + 1} of {AttemptsFor(ex, connection)}).";
                     RaiseChanged();
                     await Task.Delay(delay, token);
                     task.Message = null;
@@ -507,6 +512,9 @@ public sealed class DownloadManager : IDownloadManager
     private static bool IsTorBoxSlowDown(Exception ex, ServerConnection connection) =>
         connection.Kind == ServerKind.TorBox &&
         ex is AeroFoilException { Kind: AeroFoilErrorKind.RateLimited } or AeroFoilException { StatusCode: 400 or 429 };
+
+    private int AttemptsFor(Exception ex, ServerConnection connection) =>
+        IsTorBoxSlowDown(ex, connection) ? SlowDownRetries + 1 : MaxAttempts;
 
     private static bool IsTransient(Exception ex) => ex switch
     {
