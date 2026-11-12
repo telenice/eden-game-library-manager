@@ -137,7 +137,7 @@ public sealed class DownloadManager : IDownloadManager
         DownloadTask task;
         lock (_lock)
         {
-            var existing = _tasks.FirstOrDefault(t => t.Item.Key == item.Key && t.ServerKey == connection.ServerKey && !t.Status.IsTerminal());
+            var existing = _tasks.FirstOrDefault(t => t.Item.Key == item.Key && connection.Owns(t.ServerKey) && !t.Status.IsTerminal());
             if (existing is not null) return existing;
 
             var id = Guid.NewGuid().ToString("N");
@@ -231,14 +231,13 @@ public sealed class DownloadManager : IDownloadManager
 
     public bool IsQueuedOrActive(string itemKey)
     {
-        var serverKey = _connections.GetConnection()?.ServerKey;
-        lock (_lock) return _tasks.Any(t => t.Item.Key == itemKey && IsForServer(t, serverKey) && !t.Status.IsTerminal());
+        var connection = _connections.GetConnection();
+        lock (_lock) return _tasks.Any(t => t.Item.Key == itemKey && IsForServer(t, connection) && !t.Status.IsTerminal());
     }
 
     internal const string WaitingForProfileMessage = "Waiting: this download belongs to another server profile. Switch to that profile to continue.";
 
-    private static bool IsForServer(DownloadTask task, string? serverKey) =>
-        serverKey is not null && string.Equals(task.ServerKey, serverKey, StringComparison.OrdinalIgnoreCase);
+    private static bool IsForServer(DownloadTask task, ServerConnection? connection) => connection?.Owns(task.ServerKey) == true;
 
     public long GetReservedBytes(string? excludeTaskId = null)
     {
@@ -272,15 +271,15 @@ public sealed class DownloadManager : IDownloadManager
         {
             if (_shuttingDown) return;
             var max = Math.Clamp(_settings.Current.MaxConcurrentDownloads, 1, 4);
-            var serverKey = _connections.GetConnection()?.ServerKey;
+            var connection = _connections.GetConnection();
 
             // Transfers queued under another server profile wait until that profile is active again.
-            foreach (var waiting in _tasks.Where(t => t.Status == DownloadStatus.Queued && !IsForServer(t, serverKey)))
+            foreach (var waiting in _tasks.Where(t => t.Status == DownloadStatus.Queued && !IsForServer(t, connection)))
                 waiting.Message = WaitingForProfileMessage;
 
             while (_running.Count < max)
             {
-                var next = _tasks.FirstOrDefault(t => t.Status == DownloadStatus.Queued && !_running.ContainsKey(t.Id) && IsForServer(t, serverKey));
+                var next = _tasks.FirstOrDefault(t => t.Status == DownloadStatus.Queued && !_running.ContainsKey(t.Id) && IsForServer(t, connection));
                 if (next is null) break;
                 next.Status = DownloadStatus.Downloading;
                 next.RequestedStop = StopReason.None;
@@ -302,7 +301,7 @@ public sealed class DownloadManager : IDownloadManager
         {
             var connection = _connections.GetConnection()
                              ?? throw new AeroFoilException(AeroFoilErrorKind.NotConfigured, "Not connected to an AeroFoil server or TorBox account.");
-            if (!string.Equals(connection.ServerKey, task.ServerKey, StringComparison.OrdinalIgnoreCase))
+            if (!connection.Owns(task.ServerKey))
                 throw new AeroFoilException(AeroFoilErrorKind.AccessDenied,
                     "This download belongs to a different server profile than the one currently configured.");
 
@@ -386,12 +385,12 @@ public sealed class DownloadManager : IDownloadManager
                 Verification = result.ETag is null ? $"size={actual}" : $"size={actual};etag={result.ETag}",
             };
             await _library.RegisterDownloadAsync(local, CancellationToken.None);
-            await SafeDeleteRecordAsync(task.Id);
 
             task.CompletedPath = destination;
             task.TotalBytes = actual;
             task.DownloadedBytes = actual;
             task.Status = DownloadStatus.Completed;
+            await SafeDeleteRecordAsync(task.Id);
             _logger.LogInformation("Download completed: {Name} -> {Path}", task.Item.Name, destination);
             TaskCompleted?.Invoke(this, task);
         }
@@ -551,6 +550,9 @@ public sealed class DownloadManager : IDownloadManager
         {
             if (task.Status is DownloadStatus.Completed or DownloadStatus.Cancelled) return;
             await _manifest.SaveDownloadAsync(task.ToRecord(), CancellationToken.None);
+            // Finished or cancelled while this save ran: its row may have been deleted first, so delete it again.
+            if (task.Status is DownloadStatus.Completed or DownloadStatus.Cancelled)
+                await _manifest.DeleteDownloadAsync(task.Id, CancellationToken.None);
         }
         catch (Exception ex)
         {

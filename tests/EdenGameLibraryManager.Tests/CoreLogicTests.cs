@@ -88,6 +88,31 @@ public class LibraryMatcherTests
         var local = TestData.Local("C:/g/Game.nsp", 10, managed: false, appId: null, version: null);
         Assert.Equal(MatchState.NotDownloaded, LibraryMatcher.Match(item, [local]).State);
     }
+
+    [Fact]
+    public void Indexed_lookup_finds_the_same_entry_as_scanning_the_catalogue()
+    {
+        RemoteGameItem[] remote =
+        [
+            TestData.Item("Other", "0100000000020000", ContentType.Base, fileId: 1),
+            TestData.Item("Game v1", "0100000000010800", ContentType.Update, version: "65536", fileId: 2),
+            TestData.Item("Game v2", "0100000000010800", ContentType.Update, version: "131072", fileId: 3),
+            TestData.Item("Renamed", "0100000000030000", ContentType.Base, size: 7, fileId: 4, filename: "mine.nsp"),
+        ];
+        LocalGame[] locals =
+        [
+            TestData.Local("C:/g/u.nsp", 1000, appId: "0100000000010800", type: ContentType.Update, version: 131072) with { RemoteFileId = 3 },
+            TestData.Local("C:/g/u2.nsp", 1000, managed: false, appId: "0100000000010800", type: ContentType.Update, version: null),
+            TestData.Local("C:/g/MINE.nsp", 7, managed: false, appId: null, version: null),
+            TestData.Local("C:/g/none.nsp", 5, managed: false, appId: "0100000000099000", version: null),
+        ];
+
+        var index = LibraryMatcher.Index(remote);
+        foreach (var local in locals)
+            Assert.Same(LibraryMatcher.FindRemoteFor(local, remote), LibraryMatcher.FindRemoteFor(local, index));
+        Assert.Equal(3, LibraryMatcher.FindRemoteFor(locals[0], index)?.FileId);
+        Assert.Equal(4, LibraryMatcher.FindRemoteFor(locals[2], index)?.FileId);
+    }
 }
 
 public class TitleIdHelperTests

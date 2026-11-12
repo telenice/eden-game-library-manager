@@ -160,6 +160,20 @@ public class TorBoxTests
         Assert.DoesNotContain(ApiKey, Connection.ToString());
         Assert.False(Connection.HasCredentials);
     }
+
+    [Fact]
+    public void Replacing_the_api_key_keeps_the_profiles_downloads()
+    {
+        var before = TorBoxClient.ConnectionFor("old-key", "p1");
+        var after = TorBoxClient.ConnectionFor("new-key", "p1");
+
+        Assert.Equal(before.ServerKey, after.ServerKey);
+        Assert.True(after.Owns(before.ServerKey));
+        Assert.False(after.Owns(TorBoxClient.ConnectionFor("new-key", "p2").ServerKey));
+        // Downloads queued before 1.1.7 carry the API-key-based key; they still belong to the profile with that key.
+        Assert.True(before.Owns(TorBoxClient.ConnectionFor("old-key").ServerKey));
+        Assert.False(after.Owns(TorBoxClient.ConnectionFor("old-key").ServerKey));
+    }
 }
 
 public partial class DownloadManagerTests

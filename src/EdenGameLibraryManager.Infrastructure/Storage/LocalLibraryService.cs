@@ -75,6 +75,8 @@ public sealed class LocalLibraryService : ILocalLibraryService, IDisposable
             }
 
             var files = await Task.Run(() => EnumerateGameFiles(directory), cancellationToken);
+            // A listing cut short (drive unplugged, share dropped) would look like deleted files; keep everything.
+            if (files is null) return Games;
             var records = await _manifest.GetLibraryItemsAsync(cancellationToken);
             var result = new List<LocalGame>();
 
@@ -101,10 +103,11 @@ public sealed class LocalLibraryService : ILocalLibraryService, IDisposable
             }
 
             var now = DateTimeOffset.UtcNow;
-            foreach (var (path, info) in files)
+            var added = files.Select(entry =>
             {
+                var (path, info) = entry;
                 var identity = TitleIdHelper.ParseFileName(path);
-                var game = new LocalGame
+                return new LocalGame
                 {
                     LocalPath = path,
                     AppId = identity.AppId,
@@ -116,8 +119,8 @@ public sealed class LocalLibraryService : ILocalLibraryService, IDisposable
                     FirstSeenAt = now,
                     IsManaged = false,
                 };
-                result.Add(await _manifest.InsertLibraryItemIfMissingAsync(game, cancellationToken));
-            }
+            }).ToList();
+            if (added.Count > 0) result.AddRange(await _manifest.InsertLibraryItemsIfMissingAsync(added, cancellationToken));
 
             SetGames(result);
             return Games;
@@ -130,12 +133,37 @@ public sealed class LocalLibraryService : ILocalLibraryService, IDisposable
 
     public async Task<LocalGame> RegisterDownloadAsync(LocalGame game, CancellationToken cancellationToken)
     {
-        var stored = await _manifest.UpsertLibraryItemAsync(game, cancellationToken);
-        Replace(stored);
-        return stored;
+        await _scanLock.WaitAsync(cancellationToken);
+        try
+        {
+            var stored = await _manifest.UpsertLibraryItemAsync(game, cancellationToken);
+            Replace(stored);
+            return stored;
+        }
+        finally
+        {
+            _scanLock.Release();
+        }
     }
 
+    /// <summary>
+    /// Changes to files and rows wait for a running scan, which would otherwise see the file and the row
+    /// at different moments and drop the row as "removed outside the app".
+    /// </summary>
     public async Task DeleteAsync(LocalGame game, CancellationToken cancellationToken)
+    {
+        await _scanLock.WaitAsync(cancellationToken);
+        try
+        {
+            await DeleteCoreAsync(game, cancellationToken);
+        }
+        finally
+        {
+            _scanLock.Release();
+        }
+    }
+
+    private async Task DeleteCoreAsync(LocalGame game, CancellationToken cancellationToken)
     {
         var directory = _settings.Current.GamesDirectory;
         if (string.IsNullOrWhiteSpace(directory))
@@ -245,6 +273,19 @@ public sealed class LocalLibraryService : ILocalLibraryService, IDisposable
 
     public async Task<LocalGame> MoveAsync(LocalGame game, string targetDirectory, CancellationToken cancellationToken)
     {
+        await _scanLock.WaitAsync(cancellationToken);
+        try
+        {
+            return await MoveCoreAsync(game, targetDirectory, cancellationToken);
+        }
+        finally
+        {
+            _scanLock.Release();
+        }
+    }
+
+    private async Task<LocalGame> MoveCoreAsync(LocalGame game, string targetDirectory, CancellationToken cancellationToken)
+    {
         var directory = _settings.Current.GamesDirectory;
         if (string.IsNullOrWhiteSpace(directory))
             throw new UnsafePathException("No games directory is configured.");
@@ -334,7 +375,8 @@ public sealed class LocalLibraryService : ILocalLibraryService, IDisposable
     private void OnFileSystemEvent(object sender, FileSystemEventArgs e) =>
         _debounce.Change(DebounceDelay, Timeout.InfiniteTimeSpan);
 
-    private Dictionary<string, FileInfo> EnumerateGameFiles(string directory)
+    /// <summary>Every game file in the directory, or null when the listing failed partway.</summary>
+    private Dictionary<string, FileInfo>? EnumerateGameFiles(string directory)
     {
         var options = new EnumerationOptions
         {
@@ -365,7 +407,8 @@ public sealed class LocalLibraryService : ILocalLibraryService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error while scanning {Directory}", directory);
+            _logger.LogWarning(ex, "Error while scanning {Directory}; keeping the library as it was", directory);
+            return null;
         }
         return result;
     }

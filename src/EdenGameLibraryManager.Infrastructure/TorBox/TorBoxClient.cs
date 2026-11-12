@@ -33,7 +33,6 @@ public sealed partial class TorBoxClient(HttpClient http, ILogger<TorBoxClient> 
         ["webdl"] = "web_id",
     };
 
-    private static readonly string[] GameExtensions = [".nsp", ".nsz", ".xci", ".xcz", ".nup"];
     private const int PageSize = 1000;
     private const int MaxPages = 50;
     private const long MaxListBytes = 128L * 1024 * 1024;
@@ -43,8 +42,8 @@ public sealed partial class TorBoxClient(HttpClient http, ILogger<TorBoxClient> 
     [GeneratedRegex(@"^torbox:(?<kind>torrents|usenet|webdl)/(?<id>\d{1,18})/(?<file>\d{1,18})(#.*)?$")]
     private static partial Regex ItemUrlRegex();
 
-    public static ServerConnection ConnectionFor(string apiKey) =>
-        new(ApiBaseUri, string.Empty, apiKey.Trim(), AllowInsecureHttp: false, ServerKind.TorBox);
+    public static ServerConnection ConnectionFor(string apiKey, string? profileId = null) =>
+        new(ApiBaseUri, string.Empty, apiKey.Trim(), AllowInsecureHttp: false, ServerKind.TorBox, profileId);
 
     /// <summary>Lists every finished game file (.nsp/.nsz/.xci/.xcz/.nup) in the account's torrents, Usenet and web downloads.</summary>
     public async Task<CatalogResult> GetCatalogAsync(ServerConnection connection, CancellationToken cancellationToken)
@@ -129,7 +128,7 @@ public sealed partial class TorBoxClient(HttpClient http, ILogger<TorBoxClient> 
         {
             if (file.ValueKind != JsonValueKind.Object || !TryGetLong(file, "id", out var fileId)) continue;
             var fileName = FileNameOf(file);
-            if (fileName is null || !GameExtensions.Any(e => fileName.EndsWith(e, StringComparison.OrdinalIgnoreCase))) continue;
+            if (fileName is null || !PathSafety.IsGameFile(fileName)) continue;
 
             var identity = TitleIdHelper.ParseFileName(fileName);
             yield return new RemoteGameItem

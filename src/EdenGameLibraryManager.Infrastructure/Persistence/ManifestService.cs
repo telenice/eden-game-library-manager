@@ -93,7 +93,7 @@ public sealed class ManifestService(string databasePath, ILogger<ManifestService
                 item_json TEXT NOT NULL,
                 partial_path TEXT NOT NULL,
                 total_size INTEGER NOT NULL DEFAULT 0,
-                downloaded_bytes INTEGER NOT NULL DEFAULT 0,
+                downloaded_bytes INTEGER NOT NULL DEFAULT 0, -- unused: progress is read from the partial file's length
                 etag TEXT,
                 last_modified TEXT,
                 status INTEGER NOT NULL,
@@ -138,20 +138,29 @@ public sealed class ManifestService(string databasePath, ILogger<ManifestService
             return await SelectByPathAsync(c, game.LocalPath, ct) ?? game;
         }, cancellationToken);
 
-    public Task<LocalGame> InsertLibraryItemIfMissingAsync(LocalGame game, CancellationToken cancellationToken) =>
-        WithConnectionAsync(async (c, ct) =>
+    public Task<IReadOnlyList<LocalGame>> InsertLibraryItemsIfMissingAsync(IReadOnlyList<LocalGame> games, CancellationToken cancellationToken) =>
+        WithConnectionAsync<IReadOnlyList<LocalGame>>(async (c, ct) =>
         {
-            await using var cmd = c.CreateCommand();
-            cmd.CommandText = """
+            // One transaction for the lot: a first scan of a big folder would otherwise commit (and sync) per file.
+            await using var transaction = (SqliteTransaction)await c.BeginTransactionAsync(ct);
+            var stored = new List<LocalGame>();
+            foreach (var game in games)
+            {
+                await using var cmd = c.CreateCommand();
+                cmd.Transaction = transaction;
+                cmd.CommandText = """
                 INSERT OR IGNORE INTO library_items (local_path, server_key, remote_file_id, remote_url, title_id, app_id, name,
                     content_type, version, original_filename, expected_size, actual_size, status, downloaded_at, last_accessed_at,
                     first_seen_at, pinned, is_managed, verification)
                 VALUES ($path, $server, $fileId, $url, $titleId, $appId, $name, $type, $version, $orig, $expected, $actual, $status,
                     $downloaded, $accessed, $firstSeen, $pinned, $managed, $verification);
                 """;
-            BindGame(cmd, game);
-            await cmd.ExecuteNonQueryAsync(ct);
-            return await SelectByPathAsync(c, game.LocalPath, ct) ?? game;
+                BindGame(cmd, game);
+                await cmd.ExecuteNonQueryAsync(ct);
+                stored.Add(await SelectByPathAsync(c, game.LocalPath, ct, transaction) ?? game);
+            }
+            await transaction.CommitAsync(ct);
+            return stored;
         }, cancellationToken);
 
     public Task UpdateLibraryItemStateAsync(long id, long actualSize, LocalGameStatus status, CancellationToken cancellationToken) =>
@@ -217,7 +226,6 @@ public sealed class ManifestService(string databasePath, ILogger<ManifestService
                     Item = item,
                     PartialPath = reader.GetString(reader.GetOrdinal("partial_path")),
                     TotalSize = reader.GetInt64(reader.GetOrdinal("total_size")),
-                    DownloadedBytes = reader.GetInt64(reader.GetOrdinal("downloaded_bytes")),
                     ETag = GetNullableString(reader, "etag"),
                     LastModified = GetNullableString(reader, "last_modified"),
                     Status = (DownloadStatus)reader.GetInt32(reader.GetOrdinal("status")),
@@ -230,9 +238,9 @@ public sealed class ManifestService(string databasePath, ILogger<ManifestService
 
     public Task SaveDownloadAsync(DownloadRecord record, CancellationToken cancellationToken) =>
         ExecuteAsync("""
-            INSERT INTO downloads (id, server_key, item_json, partial_path, total_size, downloaded_bytes, etag, last_modified, status, error, created_at)
-            VALUES ($id, $server, $item, $partial, $total, $bytes, $etag, $lm, $status, $error, $created)
-            ON CONFLICT(id) DO UPDATE SET total_size = excluded.total_size, downloaded_bytes = excluded.downloaded_bytes,
+            INSERT INTO downloads (id, server_key, item_json, partial_path, total_size, etag, last_modified, status, error, created_at)
+            VALUES ($id, $server, $item, $partial, $total, $etag, $lm, $status, $error, $created)
+            ON CONFLICT(id) DO UPDATE SET total_size = excluded.total_size,
                 etag = excluded.etag, last_modified = excluded.last_modified, status = excluded.status, error = excluded.error;
             """,
             cmd =>
@@ -242,7 +250,6 @@ public sealed class ManifestService(string databasePath, ILogger<ManifestService
                 cmd.Parameters.AddWithValue("$item", JsonSerializer.Serialize(record.Item, JsonOptions));
                 cmd.Parameters.AddWithValue("$partial", record.PartialPath);
                 cmd.Parameters.AddWithValue("$total", record.TotalSize);
-                cmd.Parameters.AddWithValue("$bytes", record.DownloadedBytes);
                 cmd.Parameters.AddWithValue("$etag", (object?)record.ETag ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$lm", (object?)record.LastModified ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$status", (int)record.Status);
@@ -283,9 +290,10 @@ public sealed class ManifestService(string databasePath, ILogger<ManifestService
             return await cmd.ExecuteNonQueryAsync(token);
         }, ct);
 
-    private static async Task<LocalGame?> SelectByPathAsync(SqliteConnection c, string path, CancellationToken ct)
+    private static async Task<LocalGame?> SelectByPathAsync(SqliteConnection c, string path, CancellationToken ct, SqliteTransaction? transaction = null)
     {
         await using var cmd = c.CreateCommand();
+        cmd.Transaction = transaction;
         cmd.CommandText = "SELECT * FROM library_items WHERE local_path = $path;";
         cmd.Parameters.AddWithValue("$path", path);
         await using var reader = await cmd.ExecuteReaderAsync(ct);

@@ -29,7 +29,6 @@ public sealed record DownloadRecord
     public required RemoteGameItem Item { get; init; }
     public required string PartialPath { get; init; }
     public long TotalSize { get; init; }
-    public long DownloadedBytes { get; init; }
     public string? ETag { get; init; }
     public string? LastModified { get; init; }
     public DownloadStatus Status { get; init; }
@@ -106,7 +105,6 @@ public sealed class DownloadTask
         Item = Item,
         PartialPath = PartialPath,
         TotalSize = TotalBytes,
-        DownloadedBytes = DownloadedBytes,
         ETag = ETag,
         LastModified = LastModified,
         Status = Status,

@@ -14,7 +14,7 @@ public sealed class SettingsConnectionProvider(ISettingsService settings, ICrede
     {
         if (profile is null) return null;
         if (profile.Kind == ServerKind.TorBox)
-            return TorBoxClient.ConnectionFor(credentials.GetPassword(profile.Id) ?? string.Empty);
+            return TorBoxClient.ConnectionFor(credentials.GetPassword(profile.Id) ?? string.Empty, profile.Id);
         if (string.IsNullOrWhiteSpace(profile.ServerUrl)) return null;
         try
         {

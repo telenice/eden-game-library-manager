@@ -31,6 +31,8 @@ public sealed class LibraryCoordinator
     private int _rescanQueued;
     private int _generation;
     private bool _refreshAgain;
+    private CatalogResult? _indexedCatalog;
+    private ILookup<string, (int Order, RemoteGameItem Item)>? _catalogIndex;
 
     public LibraryCoordinator(
         IGameLibraryProvider provider,
@@ -211,8 +213,13 @@ public sealed class LibraryCoordinator
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    public RemoteGameItem? FindRemoteFor(LocalGame game) =>
-        Catalog is null ? null : LibraryMatcher.FindRemoteFor(game, Catalog.Items);
+    /// <summary>Called for every local file on each change, so the catalogue is indexed once rather than scanned per file.</summary>
+    public RemoteGameItem? FindRemoteFor(LocalGame game)
+    {
+        if (Catalog is null) return null;
+        if (!ReferenceEquals(_indexedCatalog, Catalog)) (_indexedCatalog, _catalogIndex) = (Catalog, LibraryMatcher.Index(Catalog.Items));
+        return LibraryMatcher.FindRemoteFor(game, _catalogIndex!);
+    }
 
     private void QueueRescan()
     {

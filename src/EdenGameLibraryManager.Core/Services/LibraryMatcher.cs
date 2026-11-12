@@ -94,6 +94,27 @@ public static class LibraryMatcher
         return sizeMatches ? MatchState.Downloaded : MatchState.PossibleMatch;
     }
 
+    /// <summary>
+    /// Catalogue items by app id and file name, with their catalogue position. <see cref="Compare"/> only
+    /// matches on those, so looking candidates up here gives the same answer as scanning the whole catalogue.
+    /// </summary>
+    public static ILookup<string, (int Order, RemoteGameItem Item)> Index(IReadOnlyList<RemoteGameItem> remote) =>
+        remote.SelectMany((item, order) => new[] { item.EffectiveAppId, item.SourceFileName }
+                .OfType<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(key => (Key: key, Entry: (order, item))))
+            .ToLookup(x => x.Key, x => x.Entry, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Same as the catalogue overload, but only compares the indexed candidates.</summary>
+    public static RemoteGameItem? FindRemoteFor(LocalGame local, ILookup<string, (int Order, RemoteGameItem Item)> index) =>
+        FindRemoteFor(local, new[] { local.AppId, local.FileName, local.OriginalFileName }
+            .OfType<string>()
+            .SelectMany(key => index[key])
+            .DistinctBy(e => e.Order)
+            .OrderBy(e => e.Order)
+            .Select(e => e.Item)
+            .ToList());
+
     /// <summary>Finds the catalogue entry that best describes a local file (for names and artwork).</summary>
     public static RemoteGameItem? FindRemoteFor(LocalGame local, IReadOnlyCollection<RemoteGameItem> remote)
     {

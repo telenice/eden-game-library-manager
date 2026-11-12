@@ -308,14 +308,16 @@ public sealed class SecretToolCredentialStore(ILogger<SecretToolCredentialStore>
             using var process = Process.Start(psi)!;
             if (stdin is not null) process.StandardInput.Write(stdin);
             process.StandardInput.Close();
-            var output = process.StandardOutput.ReadToEnd();
+            // Read in the background: a blocking read would wait past the limit for a prompt nobody answers.
+            var output = process.StandardOutput.ReadToEndAsync();
+            _ = process.StandardError.ReadToEndAsync();
             // A keyring unlock prompt may appear, so allow time for the user.
             if (!process.WaitForExit(TimeSpan.FromSeconds(60)))
             {
                 process.Kill();
                 return (-1, string.Empty);
             }
-            return (process.ExitCode, output);
+            return (process.ExitCode, output.GetAwaiter().GetResult());
         }
         catch (Win32Exception ex)
         {

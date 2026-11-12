@@ -206,8 +206,8 @@ public interface IManifestService
 
     Task<IReadOnlyList<LocalGame>> GetLibraryItemsAsync(CancellationToken cancellationToken);
     Task<LocalGame> UpsertLibraryItemAsync(LocalGame game, CancellationToken cancellationToken);
-    /// <summary>Inserts the row unless one already exists for the same path; returns the stored row.</summary>
-    Task<LocalGame> InsertLibraryItemIfMissingAsync(LocalGame game, CancellationToken cancellationToken);
+    /// <summary>Inserts each row unless one already exists for the same path, in one transaction; returns the stored rows.</summary>
+    Task<IReadOnlyList<LocalGame>> InsertLibraryItemsIfMissingAsync(IReadOnlyList<LocalGame> games, CancellationToken cancellationToken);
     Task UpdateLibraryItemStateAsync(long id, long actualSize, LocalGameStatus status, CancellationToken cancellationToken);
     Task SetPinnedAsync(long id, bool pinned, CancellationToken cancellationToken);
     Task SetLastAccessedAsync(long id, DateTimeOffset when, CancellationToken cancellationToken);

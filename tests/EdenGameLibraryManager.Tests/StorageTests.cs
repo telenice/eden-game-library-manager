@@ -1,3 +1,4 @@
+using EdenGameLibraryManager.Core.Interfaces;
 using EdenGameLibraryManager.Core.Models;
 using EdenGameLibraryManager.Infrastructure.Persistence;
 using EdenGameLibraryManager.Infrastructure.Storage;
@@ -33,7 +34,6 @@ public class ManifestServiceTests
             Item = TestData.Item("Game", "0100000000010000", ContentType.Base),
             PartialPath = temp.Combine("d1.partial"),
             TotalSize = 1000,
-            DownloadedBytes = 400,
             ETag = "\"x\"",
             Status = DownloadStatus.Paused,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -188,6 +188,53 @@ public class LocalLibraryServiceTests
         await Assert.ThrowsAsync<UnsafePathException>(() => library.MoveAsync(stored, temp.Combine("elsewhere"), default));
         await Assert.ThrowsAsync<UnsafePathException>(() => library.MoveAsync(stored, Path.Combine(games, "..", "escape"), default));
         Assert.True(File.Exists(path));
+    }
+
+    [Fact]
+    public async Task Download_finishing_during_a_scan_stays_marked_as_downloaded()
+    {
+        using var temp = new TempDirectory();
+        var (_, inner, games) = await CreateAsync(temp);
+        var manifest = new GatedManifest(inner);
+        var library = new LocalLibraryService(manifest, new InMemorySettings(new AppSettings { GamesDirectory = games }),
+            NullLogger<LocalLibraryService>.Instance);
+
+        // The scan has listed the (empty) folder and is about to read the rows when the download lands.
+        var scan = library.ScanAsync(default);
+        await manifest.ReadStarted.Task;
+        var path = Path.Combine(games, "a.nsp");
+        await File.WriteAllBytesAsync(path, new byte[5]);
+        var register = library.RegisterDownloadAsync(TestData.Local(path, 5, appId: "0100000000010000"), default);
+        manifest.ReleaseRead.SetResult();
+        await Task.WhenAll(scan, register);
+
+        Assert.True(Assert.Single(await inner.GetLibraryItemsAsync(default)).IsManaged);
+        Assert.True(Assert.Single(await library.ScanAsync(default)).IsManaged);
+    }
+
+    /// <summary>Pauses the first library read so a test can act while a scan is in the middle.</summary>
+    private sealed class GatedManifest(IManifestService inner) : IManifestService
+    {
+        public TaskCompletionSource ReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseRead { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<IReadOnlyList<LocalGame>> GetLibraryItemsAsync(CancellationToken ct)
+        {
+            if (ReadStarted.TrySetResult()) await ReleaseRead.Task;
+            return await inner.GetLibraryItemsAsync(ct);
+        }
+
+        public Task InitializeAsync(CancellationToken ct) => inner.InitializeAsync(ct);
+        public Task<LocalGame> UpsertLibraryItemAsync(LocalGame g, CancellationToken ct) => inner.UpsertLibraryItemAsync(g, ct);
+        public Task<IReadOnlyList<LocalGame>> InsertLibraryItemsIfMissingAsync(IReadOnlyList<LocalGame> g, CancellationToken ct) => inner.InsertLibraryItemsIfMissingAsync(g, ct);
+        public Task UpdateLibraryItemStateAsync(long id, long size, LocalGameStatus s, CancellationToken ct) => inner.UpdateLibraryItemStateAsync(id, size, s, ct);
+        public Task SetPinnedAsync(long id, bool pinned, CancellationToken ct) => inner.SetPinnedAsync(id, pinned, ct);
+        public Task SetLastAccessedAsync(long id, DateTimeOffset when, CancellationToken ct) => inner.SetLastAccessedAsync(id, when, ct);
+        public Task UpdateLibraryItemPathAsync(long id, string path, CancellationToken ct) => inner.UpdateLibraryItemPathAsync(id, path, ct);
+        public Task DeleteLibraryItemAsync(long id, CancellationToken ct) => inner.DeleteLibraryItemAsync(id, ct);
+        public Task<IReadOnlyList<DownloadRecord>> GetDownloadsAsync(CancellationToken ct) => inner.GetDownloadsAsync(ct);
+        public Task SaveDownloadAsync(DownloadRecord r, CancellationToken ct) => inner.SaveDownloadAsync(r, ct);
+        public Task DeleteDownloadAsync(string id, CancellationToken ct) => inner.DeleteDownloadAsync(id, ct);
     }
 
     [Fact]
