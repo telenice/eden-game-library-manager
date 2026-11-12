@@ -255,6 +255,10 @@ example on an unplugged drive, the database is left untouched.
   macOS, `~/.local/share/eden/…` on Linux), re-read whenever you open the page. It's shown once per
   game, on the base game's row. The file is only read, never changed. If Eden keeps its data
   somewhere else (a portable install), no playtime is shown.
+- A game folder (one whose name has a `[TitleID]` tag, like the per-game folders the app creates) is
+  removed once no file is left anywhere inside it: after its last file is deleted or moved, and on
+  startup. Any remaining file, even a non-game one, keeps it. Folders without a title ID tag, links and
+  junctions, and the games folder itself are never removed, and folders are only removed while empty.
 - Deleting only ever removes a game file (`.nsp`, `.nsz`, `.xci`, `.xcz`) inside the games folder.
   Each deletion checks the path and refuses to follow symlinks or junctions. Eden saves, config,
   firmware and keys are never touched.

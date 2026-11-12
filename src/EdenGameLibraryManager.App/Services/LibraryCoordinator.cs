@@ -69,6 +69,7 @@ public sealed class LibraryCoordinator
     public async Task InitializeAsync(bool refreshCatalog)
     {
         await _manifest.InitializeAsync(CancellationToken.None);
+        await RemoveEmptyGameFoldersAsync();
         await RescanAsync();
         await _downloads.InitializeAsync(CancellationToken.None);
         _library.StartWatching();
@@ -82,6 +83,19 @@ public sealed class LibraryCoordinator
 
         _ = RefreshTitleDbAsync(force: false);
         if (refreshCatalog) await RefreshCatalogAsync();
+    }
+
+    /// <summary>Removes game folders left empty, e.g. by deleting games outside the app.</summary>
+    private async Task RemoveEmptyGameFoldersAsync()
+    {
+        try
+        {
+            await Task.Run(_library.RemoveEmptyGameFolders);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Empty game folder clean-up failed");
+        }
     }
 
     /// <summary>Downloads titledb in the background when it is missing or more than a week old.</summary>

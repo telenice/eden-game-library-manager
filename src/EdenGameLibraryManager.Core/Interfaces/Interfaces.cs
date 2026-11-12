@@ -98,6 +98,12 @@ public interface ILocalLibraryService
 
     Task MarkAccessedAsync(LocalGame game, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Removes game folders ("Name [TitleID]") in the games directory that no longer hold any file.
+    /// Returns how many were removed.
+    /// </summary>
+    int RemoveEmptyGameFolders();
+
     void StartWatching();
 }
 

@@ -282,3 +282,102 @@ public class EdenPlayTimeTests
         Assert.Equal(TimeSpan.FromMinutes(2), (await reader.GetPlayTimesAsync(default))!["0100152000022000"]);
     }
 }
+
+public class EmptyGameFolderTests
+{
+    private const string Mk8 = "Mario Kart 8 Deluxe [0100152000022000]";
+
+    private static async Task<(LocalLibraryService Library, string Games)> CreateAsync(TempDirectory temp)
+    {
+        var games = temp.Combine("games");
+        Directory.CreateDirectory(games);
+        var manifest = new ManifestService(temp.Combine("library.db"), NullLogger<ManifestService>.Instance);
+        await manifest.InitializeAsync(default);
+        var settings = new InMemorySettings(new AppSettings { GamesDirectory = games });
+        return (new LocalLibraryService(manifest, settings, NullLogger<LocalLibraryService>.Instance), games);
+    }
+
+    private static async Task<LocalGame> AddAsync(LocalLibraryService library, string path)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllBytesAsync(path, new byte[16]);
+        return await library.RegisterDownloadAsync(TestData.Local(path, 16), default);
+    }
+
+    [Fact]
+    public async Task Game_folder_stays_while_any_file_is_left_and_goes_with_the_last_one()
+    {
+        using var temp = new TempDirectory();
+        var (library, games) = await CreateAsync(temp);
+        var folder = Path.Combine(games, Mk8);
+        var baseGame = await AddAsync(library, Path.Combine(folder, "mk8 [BASE].nsp"));
+        var dlc = await AddAsync(library, Path.Combine(folder, "DLC", "wave1 [DLC].nsp"));
+
+        await library.DeleteAsync(baseGame, default);
+        Assert.True(Directory.Exists(folder));
+
+        await library.DeleteAsync(dlc, default);
+        Assert.False(Directory.Exists(folder));
+        Assert.True(Directory.Exists(games));
+    }
+
+    [Fact]
+    public async Task Startup_sweep_removes_only_empty_folders_with_a_title_id()
+    {
+        using var temp = new TempDirectory();
+        var (library, games) = await CreateAsync(temp);
+        Directory.CreateDirectory(Path.Combine(games, Mk8, "Updates", "v1507328"));
+        var keptByFile = Path.Combine(games, "Mario Party Superstars [01006FE013472000]");
+        Directory.CreateDirectory(keptByFile);
+        await File.WriteAllTextAsync(Path.Combine(keptByFile, "notes.txt"), "mine");
+        var userFolder = Path.Combine(games, "My empty folder");
+        Directory.CreateDirectory(userFolder);
+        var nested = Path.Combine(games, "Collections", "Zelda [01007EF00011E000]");
+        Directory.CreateDirectory(nested);
+
+        Assert.Equal(2, library.RemoveEmptyGameFolders());
+
+        Assert.False(Directory.Exists(Path.Combine(games, Mk8)));
+        Assert.False(Directory.Exists(nested));
+        Assert.True(Directory.Exists(Path.Combine(games, "Collections")));
+        Assert.True(File.Exists(Path.Combine(keptByFile, "notes.txt")));
+        Assert.True(Directory.Exists(userFolder));
+        Assert.True(Directory.Exists(games));
+    }
+
+    [Fact]
+    public async Task Moving_the_last_file_out_removes_the_old_game_folder()
+    {
+        using var temp = new TempDirectory();
+        var (library, games) = await CreateAsync(temp);
+        var oldFolder = Path.Combine(games, "Old name [0100152000022000]");
+        var game = await AddAsync(library, Path.Combine(oldFolder, "mk8.nsp"));
+
+        await library.MoveAsync(game, Path.Combine(games, Mk8), default);
+
+        Assert.False(Directory.Exists(oldFolder));
+        Assert.True(File.Exists(Path.Combine(games, Mk8, "mk8.nsp")));
+    }
+
+    [WindowsFact]
+    public async Task Folders_reached_through_a_junction_are_left_alone()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var temp = new TempDirectory();
+        var (library, games) = await CreateAsync(temp);
+        var outside = temp.Combine("outside", "Elsewhere [0100152000022000]");
+        Directory.CreateDirectory(outside);
+        var junction = Path.Combine(games, "Linked [01006FE013472000]");
+        // A junction needs no admin rights, unlike a symbolic link.
+        var mklink = new System.Diagnostics.ProcessStartInfo("cmd.exe") { UseShellExecute = false, CreateNoWindow = true };
+        foreach (var arg in new[] { "/c", "mklink", "/J", junction, Path.GetDirectoryName(outside)! }) mklink.ArgumentList.Add(arg);
+        using (var process = System.Diagnostics.Process.Start(mklink)!) await process.WaitForExitAsync();
+        Assert.True(Directory.Exists(Path.Combine(junction, "Elsewhere [0100152000022000]")));
+
+        library.RemoveEmptyGameFolders();
+
+        Assert.True(Directory.Exists(outside));
+        Assert.True(Directory.Exists(junction));
+        Directory.Delete(junction);
+    }
+}

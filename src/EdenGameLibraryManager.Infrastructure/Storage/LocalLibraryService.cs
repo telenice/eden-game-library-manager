@@ -166,6 +166,75 @@ public sealed class LocalLibraryService : ILocalLibraryService, IDisposable
 
         _logger.LogInformation("Deleted local game {Path}", path);
         lock (_gamesLock) _games = _games.Where(g => !PathComparer.Equals(g.LocalPath, game.LocalPath)).ToList();
+        RemoveGameFolderIfEmpty(directory, path);
+    }
+
+    public int RemoveEmptyGameFolders()
+    {
+        var root = _settings.Current.GamesDirectory;
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) return 0;
+        var options = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+            IgnoreInaccessible = true,
+        };
+        var removed = 0;
+        try
+        {
+            // Deepest first, so a game folder nested in another one is handled before its parent.
+            foreach (var folder in Directory.EnumerateDirectories(root, "*", options).OrderByDescending(f => f.Length).ToList())
+                if (TitleIdHelper.HasBracketedId(Path.GetFileName(folder)) && TryRemoveEmptyFolder(root, folder)) removed++;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning("Could not check the games directory for empty game folders: {Error}", ex.Message);
+        }
+        if (removed > 0) _logger.LogInformation("Removed {Count} empty game folder(s)", removed);
+        return removed;
+    }
+
+    /// <summary>After a file left <paramref name="filePath"/>'s folder, removes its game folder if nothing is left in it.</summary>
+    private void RemoveGameFolderIfEmpty(string root, string filePath)
+    {
+        var rootFull = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        for (var folder = Path.GetDirectoryName(filePath); folder is not null && PathSafety.IsWithinDirectory(root, folder) &&
+                                                         !PathComparer.Equals(folder.TrimEnd(Path.DirectorySeparatorChar), rootFull);
+             folder = Path.GetDirectoryName(folder))
+        {
+            if (!TitleIdHelper.HasBracketedId(Path.GetFileName(folder))) continue;
+            TryRemoveEmptyFolder(root, folder);
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Removes <paramref name="folder"/> and its empty subfolders when no file exists anywhere inside it.
+    /// Folders are only ever removed one at a time while empty, so this can never delete a file; links,
+    /// junctions and the games directory itself are left alone.
+    /// </summary>
+    private bool TryRemoveEmptyFolder(string root, string folder)
+    {
+        try
+        {
+            if (!Directory.Exists(folder) || !PathSafety.IsWithinDirectory(root, folder) || PathSafety.HasReparsePoint(root, folder))
+                return false;
+            var all = new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = 0, IgnoreInaccessible = false };
+            if (Directory.EnumerateFiles(folder, "*", all).Any()) return false;
+            var subfolders = Directory.EnumerateDirectories(folder, "*", all).ToList();
+            if (subfolders.Any(d => (File.GetAttributes(d) & FileAttributes.ReparsePoint) != 0)) return false;
+
+            foreach (var sub in subfolders.OrderByDescending(d => d.Length)) Directory.Delete(sub, recursive: false);
+            Directory.Delete(folder, recursive: false);
+            _logger.LogInformation("Removed empty game folder {Folder}", folder);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A file appeared, or the folder is open in Explorer; try again next time.
+            _logger.LogDebug("Kept game folder {Folder}: {Error}", folder, ex.Message);
+            return false;
+        }
     }
 
     public async Task SetPinnedAsync(LocalGame game, bool pinned, CancellationToken cancellationToken)
@@ -210,6 +279,7 @@ public sealed class LocalLibraryService : ILocalLibraryService, IDisposable
         lock (_gamesLock) _games = _games.Where(g => !PathComparer.Equals(g.LocalPath, game.LocalPath)).ToList();
         Replace(moved);
         _logger.LogInformation("Moved {Source} -> {Destination}", source, destination);
+        RemoveGameFolderIfEmpty(directory, source);
         return moved;
     }
 

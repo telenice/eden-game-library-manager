@@ -15,6 +15,9 @@ public static partial class TitleIdHelper
     [GeneratedRegex(@"\[v(?<ver>\d{1,10})\]", RegexOptions.IgnoreCase)]
     private static partial Regex BracketedVersionRegex();
 
+    /// <summary>True when a file or folder name carries a "[0100ABCD12340000]" title id tag.</summary>
+    public static bool HasBracketedId(string? name) => !string.IsNullOrEmpty(name) && BracketedIdRegex().IsMatch(name);
+
     public static bool IsValidId(string? id) =>
         id is { Length: 16 } && ulong.TryParse(id, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out _);
 
