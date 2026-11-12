@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -40,16 +39,6 @@ public sealed partial class TorBoxClient(HttpClient http, ILogger<TorBoxClient> 
     private const long MaxListBytes = 128L * 1024 * 1024;
 
     internal TimeSpan ApiTimeout { get; set; } = TimeSpan.FromSeconds(60);
-
-    /// <summary>
-    /// Minimum time between download-link requests. A queue of small files (e.g. a game's 100 DLC)
-    /// otherwise asks TorBox for a new link every second or so, which TorBox refuses.
-    /// </summary>
-    internal TimeSpan LinkRequestSpacing { get; set; } = TimeSpan.FromSeconds(1);
-
-    private readonly SemaphoreSlim _linkGate = new(1, 1);
-    private readonly Stopwatch _clock = Stopwatch.StartNew();
-    private TimeSpan? _lastLinkRequest;
 
     [GeneratedRegex(@"^torbox:(?<kind>torrents|usenet|webdl)/(?<id>\d{1,18})/(?<file>\d{1,18})(#.*)?$")]
     private static partial Regex ItemUrlRegex();
@@ -99,10 +88,7 @@ public sealed partial class TorBoxClient(HttpClient http, ILogger<TorBoxClient> 
         };
     }
 
-    /// <summary>
-    /// Asks TorBox for a fresh direct link to the file behind a catalogue item. Links expire, so call this
-    /// per attempt. Requests are spaced at least <see cref="LinkRequestSpacing"/> apart, across all downloads.
-    /// </summary>
+    /// <summary>Asks TorBox for a fresh direct link to the file behind a catalogue item. Links expire, so call this per attempt.</summary>
     public async Task<Uri> RequestDownloadLinkAsync(ServerConnection connection, RemoteGameItem item, CancellationToken cancellationToken)
     {
         RequireKey(connection);
@@ -110,27 +96,7 @@ public sealed partial class TorBoxClient(HttpClient http, ILogger<TorBoxClient> 
         var query = $"{kind}/requestdl?token={Uri.EscapeDataString(connection.Password)}&{Kinds[kind]}={downloadId}" +
                     $"&file_id={fileId}&zip_link=false";
 
-        JsonDocument doc;
-        await _linkGate.WaitAsync(cancellationToken);
-        try
-        {
-            if (_lastLinkRequest is { } last && _clock.Elapsed - last < LinkRequestSpacing)
-                await Task.Delay(LinkRequestSpacing - (_clock.Elapsed - last), cancellationToken);
-            try
-            {
-                doc = await GetJsonAsync(connection, new Uri(ApiBaseUri, query), authorize: false, cancellationToken);
-            }
-            finally
-            {
-                _lastLinkRequest = _clock.Elapsed;
-            }
-        }
-        finally
-        {
-            _linkGate.Release();
-        }
-
-        using var _ = doc;
+        using var doc = await GetJsonAsync(connection, new Uri(ApiBaseUri, query), authorize: false, cancellationToken);
 
         var link = doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.String ? data.GetString() : null;
         if (!Uri.TryCreate(link, UriKind.Absolute, out var uri))

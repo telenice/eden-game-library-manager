@@ -66,7 +66,7 @@ public sealed class DownloadManager : IDownloadManager
     internal Func<int, TimeSpan> Backoff { get; set; } = attempt => TimeSpan.FromSeconds(Math.Min(60, 2 * Math.Pow(2, attempt - 1)));
 
     /// <summary>Wait before retrying when TorBox asks us to slow down.</summary>
-    internal Func<int, TimeSpan> SlowDownBackoff { get; set; } = _ => TimeSpan.FromSeconds(10);
+    internal Func<int, TimeSpan> SlowDownBackoff { get; set; } = _ => TimeSpan.FromSeconds(5);
 
     /// <summary>Retries after a TorBox slow-down answer before the download fails (attempts = retries + 1).</summary>
     internal int SlowDownRetries { get; set; } = 6;

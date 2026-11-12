@@ -98,27 +98,6 @@ public class TorBoxTests
         Assert.Equal("false", query["zip_link"]);
     }
 
-    [Fact]
-    public async Task Link_requests_are_spaced_apart_even_across_concurrent_downloads()
-    {
-        var times = new System.Collections.Concurrent.ConcurrentQueue<DateTime>();
-        var handler = new FakeHandler(_ =>
-        {
-            times.Enqueue(DateTime.UtcNow);
-            return FakeHandler.Json("""{"success":true,"data":"https://nexus-1.neur.tb-cdn.st/dld/abc"}""");
-        });
-        var client = TestData.TorBox(handler);
-        client.LinkRequestSpacing = TimeSpan.FromMilliseconds(400);
-        var item = new RemoteGameItem { Name = "DLC", Url = "torbox:torrents/1/0#a.nsp" };
-
-        await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => client.RequestDownloadLinkAsync(Connection, item, default)));
-
-        var ordered = times.OrderBy(t => t).ToList();
-        Assert.Equal(3, ordered.Count);
-        for (var i = 1; i < ordered.Count; i++)
-            Assert.True(ordered[i] - ordered[i - 1] >= TimeSpan.FromMilliseconds(380), $"gap {i} was {(ordered[i] - ordered[i - 1]).TotalMilliseconds} ms");
-    }
-
     [Theory]
     [InlineData(HttpStatusCode.BadRequest)]
     [InlineData(HttpStatusCode.TooManyRequests)]
