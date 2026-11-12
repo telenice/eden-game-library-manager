@@ -33,7 +33,7 @@ public sealed partial class TorBoxClient(HttpClient http, ILogger<TorBoxClient> 
         ["webdl"] = "web_id",
     };
 
-    private static readonly string[] GameExtensions = [".nsp", ".nsz", ".xci", ".xcz"];
+    private static readonly string[] GameExtensions = [".nsp", ".nsz", ".xci", ".xcz", ".nup"];
     private const int PageSize = 1000;
     private const int MaxPages = 50;
     private const long MaxListBytes = 128L * 1024 * 1024;
@@ -46,7 +46,7 @@ public sealed partial class TorBoxClient(HttpClient http, ILogger<TorBoxClient> 
     public static ServerConnection ConnectionFor(string apiKey) =>
         new(ApiBaseUri, string.Empty, apiKey.Trim(), AllowInsecureHttp: false, ServerKind.TorBox);
 
-    /// <summary>Lists every finished game file (.nsp/.nsz/.xci/.xcz) in the account's torrents, Usenet and web downloads.</summary>
+    /// <summary>Lists every finished game file (.nsp/.nsz/.xci/.xcz/.nup) in the account's torrents, Usenet and web downloads.</summary>
     public async Task<CatalogResult> GetCatalogAsync(ServerConnection connection, CancellationToken cancellationToken)
     {
         RequireKey(connection);

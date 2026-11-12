@@ -60,6 +60,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         new(AppTheme.System, "Follow system"),
     ];
 
+    public IReadOnlyList<AppPalette> PaletteOptions { get; } = Enum.GetValues<AppPalette>();
+
     public IReadOnlyList<int> ConcurrencyOptions { get; } = [1, 2, 3, 4];
 
     public IReadOnlyList<string> TitleDbRegions => TitleDatabase.Regions;
@@ -83,6 +85,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private decimal _refreshIntervalMinutes;
     [ObservableProperty] private decimal _speedLimitKbps;
     [ObservableProperty] private ThemeOption _selectedTheme;
+    [ObservableProperty] private AppPalette _selectedPalette;
     [ObservableProperty] private bool _useTitleDb;
     [ObservableProperty] private bool _checkForUpdates;
     [ObservableProperty] private string _titleDbRegion = TitleDatabase.Regions[0];
@@ -112,6 +115,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         RefreshIntervalMinutes = s.RefreshIntervalMinutes;
         SpeedLimitKbps = s.SpeedLimitKbps;
         SelectedTheme = ThemeOptions.FirstOrDefault(t => t.Theme == s.Theme) ?? ThemeOptions[0];
+        SelectedPalette = s.Palette;
         UseTitleDb = s.UseTitleDb;
         CheckForUpdates = s.CheckForUpdates;
         TitleDbRegion = TitleDatabase.NormalizeRegion(s.TitleDbRegion);
@@ -160,6 +164,14 @@ public sealed partial class SettingsViewModel : ViewModelBase
         App.ApplyTheme(value.Theme);
         if (value.Theme != _settings.Current.Theme)
             _ = _settings.SaveAsync(_settings.Current with { Theme = value.Theme });
+    }
+
+    /// <summary>Applied and saved straight away, like the theme.</summary>
+    partial void OnSelectedPaletteChanged(AppPalette value)
+    {
+        App.ApplyPalette(value);
+        if (value != _settings.Current.Palette)
+            _ = _settings.SaveAsync(_settings.Current with { Palette = value });
     }
 
     [RelayCommand]
@@ -323,6 +335,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             RefreshIntervalMinutes = (int)RefreshIntervalMinutes,
             SpeedLimitKbps = (int)SpeedLimitKbps,
             Theme = SelectedTheme.Theme,
+            Palette = SelectedPalette,
             UseTitleDb = UseTitleDb,
             CheckForUpdates = CheckForUpdates,
             TitleDbRegion = TitleDbRegion,

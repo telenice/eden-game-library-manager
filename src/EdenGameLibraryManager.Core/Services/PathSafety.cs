@@ -6,7 +6,7 @@ namespace EdenGameLibraryManager.Core.Services;
 public static class PathSafety
 {
     public static readonly IReadOnlySet<string> GameExtensions =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "nsp", "nsz", "xci", "xcz" };
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "nsp", "nsz", "xci", "xcz", "nup" };
 
     private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -44,7 +44,7 @@ public static class PathSafety
 
         var ext = Path.GetExtension(clean).TrimStart('.');
         if (!GameExtensions.Contains(ext))
-            throw new UnsafePathException($"'{name}' is not a supported game file (.nsp, .nsz, .xci, .xcz).");
+            throw new UnsafePathException($"'{name}' is not a supported game file (.nsp, .nsz, .xci, .xcz, .nup).");
 
         var stem = Path.GetFileNameWithoutExtension(clean).TrimEnd('.', ' ');
         if (stem.Length == 0 || stem.Trim('.').Length == 0)

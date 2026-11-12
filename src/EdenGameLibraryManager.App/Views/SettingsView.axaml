@@ -128,6 +128,10 @@
               <TextBlock Text="Theme" VerticalAlignment="Center" />
               <ComboBox Grid.Column="1" ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme}" Width="160" />
             </Grid>
+            <Grid ColumnDefinitions="320,*">
+              <TextBlock Text="Colour palette" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding PaletteOptions}" SelectedItem="{Binding SelectedPalette}" Width="160" />
+            </Grid>
           </StackPanel>
         </Border>
 

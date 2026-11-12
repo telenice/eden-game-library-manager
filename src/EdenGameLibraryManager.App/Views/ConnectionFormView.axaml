@@ -36,7 +36,7 @@
       <TextBlock Text="TorBox API key" Classes="label" />
       <TextBox Text="{Binding Password}" PasswordChar="•" RevealPassword="False" Classes="revealPasswordButton" />
       <TextBlock Classes="muted small" TextWrapping="Wrap"
-                 Text="Find it at torbox.app → Settings. The app lists the .nsp, .nsz, .xci and .xcz files in your finished TorBox torrents, Usenet and web downloads, and downloads them straight from TorBox. File names need a [TitleID] tag (for example [0100ABCD12340000]) for names, artwork and update/DLC grouping." />
+                 Text="Find it at torbox.app → Settings. The app lists the .nsp, .nsz, .xci, .xcz and .nup files in your finished TorBox torrents, Usenet and web downloads, and downloads them straight from TorBox. File names need a [TitleID] tag (for example [0100ABCD12340000]) for names, artwork and update/DLC grouping." />
     </StackPanel>
 
     <CheckBox IsChecked="{Binding RememberPassword}" IsEnabled="{Binding SupportsPasswordPersistence}" Content="{Binding RememberLabel}" />

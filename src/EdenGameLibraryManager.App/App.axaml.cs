@@ -2,7 +2,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
 using EdenGameLibraryManager.App.Services;
 using EdenGameLibraryManager.App.ViewModels;
@@ -42,7 +44,9 @@ public partial class App : Application
             typeof(App).Assembly.GetName().Version, System.Runtime.InteropServices.RuntimeInformation.OSDescription);
         HookUnhandledExceptions(logger);
 
-        ApplyTheme(_services.GetRequiredService<ISettingsService>().Current.Theme);
+        var settings = _services.GetRequiredService<ISettingsService>().Current;
+        ApplyTheme(settings.Theme);
+        ApplyPalette(settings.Palette);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -101,6 +105,44 @@ public partial class App : Application
             AppTheme.System => ThemeVariant.Default,
             _ => ThemeVariant.Dark,
         };
+    }
+
+    // Surface hue (null keeps App.axaml's own colours) and accent for dark and light mode.
+    private static readonly Dictionary<AppPalette, (double? Hue, Color Accent, Color LightAccent)> Palettes = new()
+    {
+        [AppPalette.Violet] = (null, Color.Parse("#7C5CFF"), Color.Parse("#6A4BFF")),
+        [AppPalette.Ocean] = (205, Color.Parse("#3B9EFF"), Color.Parse("#0B6BCB")),
+        [AppPalette.Emerald] = (160, Color.Parse("#2FBF8A"), Color.Parse("#12855C")),
+        [AppPalette.Rose] = (340, Color.Parse("#FF5C8A"), Color.Parse("#D0306A")),
+        [AppPalette.Amber] = (35, Color.Parse("#FFA940"), Color.Parse("#B5670A")),
+    };
+
+    private static readonly Dictionary<(ThemeVariant, object), Color> OriginalColors = [];
+
+    /// <summary>Recolours the themed surface brushes and the accent, keeping each colour's saturation and lightness.</summary>
+    public static void ApplyPalette(AppPalette palette)
+    {
+        if (Current is null) return;
+        var (hue, accent, lightAccent) = Palettes[palette];
+        foreach (var variant in new[] { ThemeVariant.Dark, ThemeVariant.Light })
+        {
+            var brushes = (ResourceDictionary)Current.Resources.ThemeDictionaries[variant];
+            foreach (var (key, value) in brushes.ToList())
+            {
+                if (value is not SolidColorBrush brush) continue;
+                if (!OriginalColors.TryGetValue((variant, key), out var original))
+                    OriginalColors[(variant, key)] = original = brush.Color;
+                var hsl = original.ToHsl();
+                brushes[key] = new SolidColorBrush(hue is { } h ? HslColor.ToRgb(h, hsl.S, hsl.L) : original);
+            }
+        }
+
+        Current.Resources["AccentBrush"] = new SolidColorBrush(accent);
+        var fluent = Current.Styles.OfType<FluentTheme>().First();
+        fluent.Palettes[ThemeVariant.Dark].Accent = accent;
+        var darkBrushes = (ResourceDictionary)Current.Resources.ThemeDictionaries[ThemeVariant.Dark];
+        fluent.Palettes[ThemeVariant.Dark].RegionColor = ((SolidColorBrush)darkBrushes["AppBackgroundBrush"]!).Color;
+        fluent.Palettes[ThemeVariant.Light].Accent = lightAccent;
     }
 
     private static ServiceProvider ConfigureServices(AppPaths paths)

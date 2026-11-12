@@ -25,11 +25,11 @@ Eden.
 | **Folder per game** | Files are saved as `<games folder>\<Game name> [TitleID]\…`, with the base game, update and DLC together (Settings → Local games directory; on by default). **Organise existing downloads** moves files this app downloaded earlier into that layout. Files you added yourself are never moved. |
 | **Group by game** | One card per title with its updates and DLC. An **Update available** / **New DLC** badge appears when you have the base game but newer content is on the server, and **Download N** fetches everything that's missing. |
 | **Server profiles** | Save several AeroFoil servers and TorBox accounts and switch between them from the sidebar. Each profile has its own credentials, offline catalogue cache and download queue. The games folder and storage limit are shared. |
-| **TorBox** | Lists the `.nsp`/`.nsz`/`.xci`/`.xcz` files in your finished TorBox downloads and fetches them straight from TorBox, so your home upload speed doesn't matter. See [TorBox profiles](#torbox-profiles). |
+| **TorBox** | Lists the `.nsp`/`.nsz`/`.xci`/`.xcz`/`.nup` files in your finished TorBox downloads and fetches them straight from TorBox, so your home upload speed doesn't matter. See [TorBox profiles](#torbox-profiles). |
 | **Game info from titledb** | Names, descriptions, icons and screenshots by title ID from [titledb](https://github.com/blawar/titledb), without a server. Required for TorBox; fills gaps for AeroFoil. See [Game info and artwork](#game-info-and-artwork-titledb). |
 | **Downloaded Games** | Every game file in your games folder, nested folders included, with updates and DLC listed under their base game. Shows size, path, download date, total playtime from Eden, pinned status, **Open Folder** and **Delete** (after confirmation). Supports multi-select delete and storage figures. |
 | **Downloads** | A persistent queue with progress, speed, ETA and status (Queued, Downloading, Paused, Verifying, Completed, Cancelled, Failed). Pause, resume, cancel and retry each transfer. |
-| **Settings** | Server URL and credentials with a connection test, games folder, maximum storage for downloads, concurrency (1–4), speed limit, auto-resume, startup and periodic refresh, and theme. |
+| **Settings** | Server URL and credentials with a connection test, games folder, maximum storage for downloads, concurrency (1–4), speed limit, auto-resume, startup and periodic refresh, theme (dark, light or follow system) and colour palette (Violet, Ocean, Emerald, Rose, Amber). |
 | **Reliability** | HTTP Range resume checked against ETag / Last-Modified, bounded retries with exponential backoff, size verification, partial files kept outside the games folder, and a database that rebuilds itself if corrupted. |
 | **Storage** | Optional maximum storage for downloads, a cleanup picker when a download won't fit, and pinned games. Nothing is deleted without your confirmation. |
 | **Updates** | Checks GitHub for a newer release at startup (Settings → Updates). On Windows it downloads the new version, checks its signature, replaces its own `.exe` and restarts. See [Updates](#updates). |
@@ -107,7 +107,7 @@ A TorBox profile uses the files in your own TorBox account (a paid plan is requi
 AeroFoil server. Get your API key from **torbox.app → Settings**.
 
 - **Catalogue.** The app reads `GET /v1/api/{torrents,usenet,webdl}/mylist` and lists every
-  `.nsp`, `.nsz`, `.xci` and `.xcz` file in downloads TorBox has finished storing
+  `.nsp`, `.nsz`, `.xci`, `.xcz` and `.nup` file in downloads TorBox has finished storing
   (`download_present`). Files still downloading on TorBox appear once they're done.
 - **Identity comes from the file name.** TorBox only knows file names, so the title ID, version and
   type (base, update or DLC) are read from `[0100…]` and `[v…]` tags, e.g.
@@ -259,7 +259,7 @@ example on an unplugged drive, the database is left untouched.
   removed once no file is left anywhere inside it: after its last file is deleted or moved, and on
   startup. Any remaining file, even a non-game one, keeps it. Folders without a title ID tag, links and
   junctions, and the games folder itself are never removed, and folders are only removed while empty.
-- Deleting only ever removes a game file (`.nsp`, `.nsz`, `.xci`, `.xcz`) inside the games folder.
+- Deleting only ever removes a game file (`.nsp`, `.nsz`, `.xci`, `.xcz`, `.nup`) inside the games folder.
   Each deletion checks the path and refuses to follow symlinks or junctions. Eden saves, config,
   firmware and keys are never touched.
 

@@ -6,6 +6,9 @@ public enum ViewMode { Grid, List }
 
 public enum AppTheme { Dark, Light, System }
 
+/// <summary>Colour palette; applies to both the light and dark theme.</summary>
+public enum AppPalette { Violet, Ocean, Emerald, Rose, Amber }
+
 /// <summary>Where a profile's games come from.</summary>
 public enum ServerKind
 {
@@ -78,6 +81,7 @@ public sealed record AppSettings
     public bool CheckForUpdates { get; init; } = true;
 
     public AppTheme Theme { get; init; } = AppTheme.Dark;
+    public AppPalette Palette { get; init; } = AppPalette.Violet;
     public ViewMode ViewMode { get; init; } = ViewMode.Grid;
     public bool GroupByGame { get; init; }
     public bool SetupCompleted { get; init; }

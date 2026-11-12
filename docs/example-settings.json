@@ -39,6 +39,7 @@
   "useTitleDb": true,
   "titleDbRegion": "US.en",
   "theme": "Dark",
+  "palette": "Violet",
   "viewMode": "Grid",
   "groupByGame": false,
   "setupCompleted": true

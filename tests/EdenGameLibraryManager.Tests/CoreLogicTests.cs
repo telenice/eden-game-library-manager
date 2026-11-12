@@ -153,6 +153,7 @@ public class PathSafetyTests
         Assert.Equal("Game_ Part_2_.nsp", PathSafety.SanitizeGameFileName("Game? Part*2|.nsp"));
         Assert.Equal("_CON.nsp", PathSafety.SanitizeGameFileName("CON.nsp"));
         Assert.Equal("Game.xcz", PathSafety.SanitizeGameFileName("Game.XCZ"));
+        Assert.Equal("Game.nup", PathSafety.SanitizeGameFileName("Game.NUP"));
     }
 
     [Fact]
